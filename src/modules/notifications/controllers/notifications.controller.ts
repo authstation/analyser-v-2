@@ -202,21 +202,6 @@ export const index: Handler = async (c: any) => {
           createdAt: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
         });
       }
-
-      // 1-Time Office Switch available
-      if (currentUser.paymentStatus === "approved" && !currentUser.hasChangedCircle && userSubs.some((s) => s.status === "approved")) {
-        items.push({
-          id: "user-switch-available",
-          type: "user_switch_available",
-          title: "1-Time Office Switch Available",
-          body: "You can transfer/switch your circle office once during this subscription period.",
-          icon: "bi-arrow-left-right",
-          colorClass: "info",
-          link: "/my-subscriptions",
-          isRead: false,
-          createdAt: new Date().toISOString(),
-        });
-      }
     }
 
     // -------------------------------------------------------------
