@@ -83,6 +83,16 @@ export async function initDatabase() {
 
   pool = postgres(databaseConfig.url);
   databaseInstance = drizzlePg(pool, { schema });
+
+  try {
+    const { migrate } = await import("drizzle-orm/postgres-js/migrator");
+    const migrationsFolder = path.resolve(process.cwd(), "src/database/migrations/postgresql");
+    await migrate(databaseInstance, { migrationsFolder });
+    console.log("[Database] Auto-migrations applied successfully for PostgreSQL");
+  } catch (migErr: any) {
+    console.warn("[Database] Auto-migration note:", migErr?.message || migErr);
+  }
+
   return databaseInstance;
 }
 
