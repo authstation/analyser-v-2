@@ -360,6 +360,12 @@ async function ensurePostgresTables(sql: any) {
     ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "data" text;
     ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "link" varchar(500);
     ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "read_at" timestamp;
+
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='notifications' AND column_name='message') THEN
+        ALTER TABLE "notifications" ALTER COLUMN "message" DROP NOT NULL;
+      END IF;
+    END $$;
   `);
 }
 
