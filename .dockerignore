@@ -2,7 +2,7 @@
 node_modules
 src/resources/node_modules
 
-# Build artifacts (builder stage will generate fresh ones)
+# Build artifacts
 dist
 public
 
@@ -21,6 +21,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+bun-error.log*
 *.log
 
 # Test & coverage
