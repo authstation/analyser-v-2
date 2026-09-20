@@ -52,7 +52,7 @@ async function executeStatement(statement: string, dialect: "postgresql" | "mysq
   }
 }
 
-export async function runModelMigrationHooks() {
+export async function runModelMigrationHooks(options: { closeOnFinish?: boolean } = {}) {
   const dialect = detectDialect();
   const files = await discoverModuleFiles("**/database/models/*.{ts,js}");
 
@@ -75,12 +75,14 @@ export async function runModelMigrationHooks() {
       console.log(`Applied ${applied} model migration SQL statement(s) for ${dialect}.`);
     }
   } finally {
-    await closeDatabase();
+    if (options.closeOnFinish) {
+      await closeDatabase();
+    }
   }
 }
 
 if (process.argv[1]?.endsWith("migrate-hooks.ts")) {
-  runModelMigrationHooks().catch((error) => {
+  runModelMigrationHooks({ closeOnFinish: true }).catch((error) => {
     console.error("Failed to run model migration hooks:", error instanceof Error ? error.message : error);
     process.exit(1);
   });
