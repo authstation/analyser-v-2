@@ -33,7 +33,7 @@
                   :type="showPassword ? 'text' : 'password'" 
                   v-model="password" 
                   class="form-control pe-5" 
-                  placeholder="Minimum 6 characters" 
+                  placeholder="e.g. Secret@123" 
                   required 
                 />
                 <button 
@@ -46,6 +46,9 @@
                   <i class="bi fs-6" :class="showPassword ? 'bi-eye-slash' : 'bi-eye'"></i>
                 </button>
               </div>
+              <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+                Must contain at least 6 characters with uppercase (A-Z), lowercase (a-z), and a special character (!@#$...).
+              </small>
             </div>
             <div class="mb-3">
               <label class="form-label text-muted">Confirm Password</label>
@@ -185,6 +188,9 @@ const circleOptions = computed(() => {
 const isFormValid = computed(() => {
   if (!name.value.trim() || !email.value.trim()) return false;
   if (password.value.length < 6) return false;
+  if (!/[a-z]/.test(password.value)) return false;
+  if (!/[A-Z]/.test(password.value)) return false;
+  if (!/[^A-Za-z0-9]/.test(password.value)) return false;
   if (password.value !== confirmPassword.value) return false;
   if (circleIds.value.length === 0) return false;
   
@@ -234,6 +240,18 @@ const handleSignup = async () => {
     triggerToast("Password must be at least 6 characters long", 'error');
     return;
   }
+  if (!/[a-z]/.test(password.value)) {
+    triggerToast("Password must contain at least one lowercase letter (a-z)", 'error');
+    return;
+  }
+  if (!/[A-Z]/.test(password.value)) {
+    triggerToast("Password must contain at least one uppercase letter (A-Z)", 'error');
+    return;
+  }
+  if (!/[^A-Za-z0-9]/.test(password.value)) {
+    triggerToast("Password must contain at least one special character (!@#$ etc.)", 'error');
+    return;
+  }
   if (password.value !== confirmPassword.value) {
     triggerToast("Passwords do not match", 'error');
     return;
@@ -271,7 +289,20 @@ const handleSignup = async () => {
       router.push('/login');
     }, 1800);
   } catch (err: any) {
-    triggerToast(err.response?.data?.message || err.response?.data?.error || 'Registration failed. Please try again.', 'error');
+    const errorData = err.response?.data;
+    let message = 'Registration failed. Please try again.';
+    if (typeof errorData?.message === 'string') {
+      message = errorData.message;
+    } else if (typeof errorData?.error === 'string') {
+      message = errorData.error;
+    } else if (errorData?.issues && Array.isArray(errorData.issues) && errorData.issues.length > 0) {
+      message = errorData.issues[0].message || 'Validation error';
+    } else if (errorData?.error?.issues && Array.isArray(errorData.error.issues) && errorData.error.issues.length > 0) {
+      message = errorData.error.issues[0].message || 'Validation error';
+    } else if (err.message) {
+      message = err.message;
+    }
+    triggerToast(message, 'error', 3500);
   } finally {
     loading.value = false;
   }

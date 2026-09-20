@@ -1,9 +1,31 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
-import { defaultHook } from "stoker/openapi";
 
 export type NexgenRouter = OpenAPIHono & {
   group: (...middlewares: any[]) => NexgenRouter;
   api: (route: any, handlerOrMiddlewares: any, handler?: any) => NexgenRouter;
+};
+
+const customDefaultHook = (result: any, c: any) => {
+  if (!result.success) {
+    const issues = result.error?.issues || [];
+    const firstMessage = issues[0]?.message || "Validation failed";
+    const errors: Record<string, string[]> = {};
+    for (const issue of issues) {
+      const field = (issue.path || []).join(".") || "general";
+      if (!errors[field]) errors[field] = [];
+      errors[field].push(issue.message);
+    }
+    return c.json(
+      {
+        success: false,
+        message: firstMessage,
+        error: firstMessage,
+        errors,
+        issues
+      },
+      422
+    );
+  }
 };
 
 /**
@@ -13,7 +35,7 @@ export type NexgenRouter = OpenAPIHono & {
  * How: Wraps OpenAPIHono and adds group/api convenience APIs.
  */
 export function createRouter(): NexgenRouter {
-  const router = new OpenAPIHono({ strict: false, defaultHook }) as NexgenRouter;
+  const router = new OpenAPIHono({ strict: false, defaultHook: customDefaultHook }) as NexgenRouter;
   const baseOpenapi = router.openapi.bind(router);
 
   router.group = function (...middlewares) {
