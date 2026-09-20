@@ -11,7 +11,7 @@
     "build:all": "npm run build:backend && npm run build:ui",
     "build:backend": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
     "build:ui": "node src/framework/maker-cli/runtime/build-ui.mjs",
-    "start": "node src/framework/maker-cli/index.mjs serve",
+    "start": "node dist/src/framework/server.js",
     "dev": "node src/framework/maker-cli/index.mjs dev",
     "backend": "node src/framework/maker-cli/index.mjs serve --src",
     "ui": "node src/framework/maker-cli/index.mjs ui:dev",
