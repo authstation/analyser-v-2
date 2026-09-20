@@ -3,14 +3,10 @@ FROM oven/bun:latest AS builder
 
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json bun.lock* ./
 
-# Production dependencies install (runs once)
-RUN bun install --production
-RUN cp -r node_modules /tmp/node_modules_prod
-
-# Full install for Vite UI build tools
-RUN bun install
+# Fast single install using lockfile (avoids network freeze)
+RUN bun install --frozen-lockfile || bun install
 
 COPY . .
 
@@ -25,9 +21,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV APP_PORT=3010
 
-# Direct copy from builder — কোনো ডাবল ডাউনলোড বা ইনস্টলেশন নেই!
-COPY --from=builder /tmp/node_modules_prod ./node_modules
-COPY package.json ./
+# Direct copy from builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY package.json bun.lock* ./
 
 # Backend TypeScript source — Bun সরাসরি চালায়
 COPY src ./src
