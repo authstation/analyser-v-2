@@ -81,7 +81,12 @@ export async function initDatabase() {
     throw new Error("Missing postgres dependencies. Install with: bun add drizzle-orm postgres");
   }
 
-  pool = postgres(databaseConfig.url);
+  pool = postgres(databaseConfig.url, {
+    max: 10,
+    idle_timeout: 30,
+    connect_timeout: 10,
+    max_lifetime: 60 * 30
+  });
   databaseInstance = drizzlePg(pool, { schema });
 
   try {

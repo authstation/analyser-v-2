@@ -4,6 +4,7 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 
 ENV NODE_ENV=development
+ENV NODE_OPTIONS="--max-old-space-size=1024"
 
 COPY package*.json ./
 RUN npm ci --include=dev
