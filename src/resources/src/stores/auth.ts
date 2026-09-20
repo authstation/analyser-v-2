@@ -44,17 +44,42 @@ const BOOTSTRAP_BACKOFF_MS = 500;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const STORED_USER_KEY = "auth_user";
+
+function loadStoredUser(): AuthUser | null {
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(STORED_USER_KEY) : null;
+    return raw ? (JSON.parse(raw) as AuthUser) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const useAuthStore = defineStore("auth", () => {
-  const user = ref<AuthUser | null>(null);
-  const isAuthenticated = ref(false);
+  const initial = loadStoredUser();
+  const user = ref<AuthUser | null>(initial);
+  const isAuthenticated = ref(!!initial);
   const processing = ref(false);
   const initialized = ref(false);
+
+  if (initial) {
+    setUser(initial);
+  }
 
   const syncUser = (value: AuthUser | null) => {
     user.value = value;
     isAuthenticated.value = !!value;
-    if (value) setUser(value);
-    else clearUser();
+    if (value) {
+      setUser(value);
+      try {
+        localStorage.setItem(STORED_USER_KEY, JSON.stringify(value));
+      } catch {}
+    } else {
+      clearUser();
+      try {
+        localStorage.removeItem(STORED_USER_KEY);
+      } catch {}
+    }
   };
 
   const bootstrap = async (forceRefresh = false) => {

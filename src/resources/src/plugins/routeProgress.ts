@@ -1,4 +1,4 @@
-import type { Router } from "vue-router";
+import { START_LOCATION, type Router } from "vue-router";
 
 const BAR_ID = "app-route-progress";
 
@@ -71,7 +71,7 @@ export function setupRouteProgress(router: Router) {
   };
 
   router.beforeEach((to, from) => {
-    if (to.path !== from.path) {
+    if (from !== START_LOCATION && to.path !== from.path) {
       start();
     }
     return true;
