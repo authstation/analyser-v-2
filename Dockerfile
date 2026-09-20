@@ -6,8 +6,8 @@ FROM oven/bun:latest AS builder
 WORKDIR /app
 
 # bun.lock থাকলে fast install, না থাকলে package.json থেকে
-COPY package.json bun.lock* ./
-RUN bun install
+COPY package.json bun.lockb* bun.lock* ./
+RUN bun install --no-frozen-lockfile
 
 COPY . .
 
@@ -23,8 +23,8 @@ ENV NODE_ENV=production
 ENV APP_PORT=3010
 
 # Production deps only — dev tools বাদ
-COPY package.json bun.lock* ./
-RUN bun install --production
+COPY package.json bun.lockb* bun.lock* ./
+RUN bun install --production --no-frozen-lockfile
 
 # Backend TypeScript source — Bun সরাসরি চালায়
 COPY src ./src
