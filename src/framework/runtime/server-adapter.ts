@@ -64,9 +64,12 @@ async function startBun(
     if (websocket.bun.idleTimeout) {
       serverConfig.idleTimeout = websocket.bun.idleTimeout;
     }
-    if (websocket.bun.maxRequestBodySize) {
-      serverConfig.maxRequestBodySize = websocket.bun.maxRequestBodySize;
-    }
+    // NOTE: Do NOT pass websocket.bun.maxRequestBodySize here.
+    // That value is meant for WebSocket message limits, not HTTP body limits.
+    // Passing it to Bun.serve() would override the default 128 MB HTTP body
+    // limit with the much smaller WebSocket limit (1 MB), breaking file uploads.
+    // The actual file size validation is handled by the app-level setting
+    // (common_max_file_size_mb / max_file_size_mb) in each module's controller.
   }
 
   serverInstance = globals.Bun.serve(serverConfig);

@@ -312,6 +312,13 @@ async function ensurePostgresTables(sql: any) {
       "read_at" timestamp,
       "created_at" timestamp DEFAULT now() NOT NULL
     );
+
+    ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "type" varchar(100) DEFAULT 'info';
+    ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "title" varchar(255) DEFAULT '';
+    ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "body" text;
+    ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "data" text;
+    ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "link" varchar(500);
+    ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "read_at" timestamp;
   `);
 }
 

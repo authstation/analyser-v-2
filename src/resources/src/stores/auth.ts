@@ -106,8 +106,13 @@ export const useAuthStore = defineStore("auth", () => {
   const login = async (payload: LoginPayload) => {
     processing.value = true;
     try {
-      const data = await request<AuthData>("POST", "/login", payload);
+      const data = await request<any>("POST", "/login", payload);
       syncUser((data?.data?.user || null) as AuthUser | null);
+      if (data?.data?.access_token) {
+        try {
+          localStorage.setItem("access_token", data.data.access_token);
+        } catch {}
+      }
       initialized.value = true;
       return data.message || "Login successful";
     } finally {
@@ -118,10 +123,15 @@ export const useAuthStore = defineStore("auth", () => {
   const register = async (payload: RegisterPayload) => {
     processing.value = true;
     try {
-      const data = await request<AuthData>("POST", "/register", payload);
+      const data = await request<any>("POST", "/register", payload);
       const createdUser = (data?.data?.user || null) as AuthUser | null;
       if (createdUser) {
         syncUser(createdUser);
+        if (data?.data?.access_token) {
+          try {
+            localStorage.setItem("access_token", data.data.access_token);
+          } catch {}
+        }
         initialized.value = true;
       } else {
         syncUser(null);
@@ -167,9 +177,12 @@ export const useAuthStore = defineStore("auth", () => {
     try {
       await request<unknown>("POST", "/logout");
     } finally {
+      try {
+        localStorage.removeItem("access_token");
+      } catch {}
       syncUser(null);
       processing.value = false;
-      initialized.value = false; // Reset so bootstrap() re-fetches after next login
+      initialized.value = false;
     }
   };
 

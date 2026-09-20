@@ -236,9 +236,7 @@ const handleFileUpload = async (event: Event) => {
 
   try {
     const response = await axios.post('/api/return-data/parse', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+      timeout: 180000
     });
     
     processingProgress.value = 100;

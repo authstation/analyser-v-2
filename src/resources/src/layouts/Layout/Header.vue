@@ -66,7 +66,7 @@
               <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom border-custom notif-header">
                 <div class="d-flex align-items-center gap-2">
                   <h6 class="mb-0 fw-bold small text-light">Notifications</h6>
-                  <span v-if="unreadCount > 0" class="badge bg-primary bg-opacity-20 text-primary border border-primary border-opacity-25 text-xs">
+                  <span v-if="unreadCount > 0" class="badge bg-primary text-white text-xs px-2 py-1">
                     {{ unreadCount }} new
                   </span>
                 </div>
@@ -306,12 +306,12 @@ const iconBoxClass = (colorClass: string) => ({
 }[colorClass] ?? "bg-secondary bg-opacity-10 text-secondary");
 
 const badgeClass = (colorClass: string) => ({
-  warning: "bg-warning bg-opacity-20 text-warning border border-warning border-opacity-25",
-  danger: "bg-danger bg-opacity-20 text-danger border border-danger border-opacity-25",
-  info: "bg-info bg-opacity-20 text-info border border-info border-opacity-25",
-  success: "bg-success bg-opacity-20 text-success border border-success border-opacity-25",
-  primary: "bg-primary bg-opacity-20 text-primary border border-primary border-opacity-25",
-}[colorClass] ?? "bg-secondary text-light");
+  warning: "bg-warning text-dark fw-bold px-2 py-1",
+  danger: "bg-danger text-white fw-bold px-2 py-1",
+  info: "bg-info text-dark fw-bold px-2 py-1",
+  success: "bg-success text-white fw-bold px-2 py-1",
+  primary: "bg-primary text-white fw-bold px-2 py-1",
+}[colorClass] ?? "bg-secondary text-white px-2 py-1");
 
 const handleClickOutside = (e: MouseEvent) => {
   if (userDropdownRef.value && !userDropdownRef.value.contains(e.target as Node)) {

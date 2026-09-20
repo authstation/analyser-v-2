@@ -1,5 +1,5 @@
 import type { Handler } from "hono";
-import { eq, desc, and, count, inArray, isNull } from "drizzle-orm";
+import { eq, ne, desc, and, count, inArray, isNull } from "drizzle-orm";
 import { db, HttpStatusCodes } from "@/framework/facade.js";
 import { users } from "@/modules/auth/database/models/user.js";
 import { plans } from "@/modules/plans/database/models/plans.js";
@@ -56,7 +56,7 @@ export const index: Handler = async (c: any) => {
     // 1. ADMIN NOTIFICATIONS
     // -------------------------------------------------------------
     if (isAdmin) {
-      // Check Pending User Registrations / Payments
+      // Check Pending User Registrations / Payments (only non-admin users with pending status)
       const pendingUsers = await db
         .select({
           id: users.id,
@@ -65,7 +65,7 @@ export const index: Handler = async (c: any) => {
           createdAt: users.createdAt,
         })
         .from(users)
-        .where(inArray(users.paymentStatus, ["pending", "none"]))
+        .where(and(ne(users.role, "admin"), eq(users.paymentStatus, "pending")))
         .orderBy(desc(users.createdAt));
 
       const pendingUserCount = pendingUsers.length;

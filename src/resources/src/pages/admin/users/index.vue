@@ -142,11 +142,11 @@ const formatStatus = (s: string) => {
 };
 
 const statusClass = (s: string) => ({
-  approved: 'bg-success bg-opacity-10 text-success border border-success border-opacity-25',
-  inactive: 'bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25',
-  rejected: 'bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25',
-  pending: 'bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25'
-}[s] ?? 'bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25');
+  approved: 'bg-success text-white fw-semibold',
+  inactive: 'bg-secondary text-white fw-semibold',
+  rejected: 'bg-danger text-white fw-semibold',
+  pending: 'bg-warning text-dark fw-semibold'
+}[s] ?? 'bg-secondary text-white');
 
 const getExpiryDate = (start: string, days: number) => {
   const d = new Date(start);

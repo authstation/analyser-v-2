@@ -9,6 +9,17 @@ axios.defaults.withCredentials = true;
 axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
 axios.defaults.headers.common.Accept = "application/json";
 
+axios.interceptors.request.use((config) => {
+  if (typeof localStorage !== "undefined") {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
 axios.interceptors.response.use(
   (response) => response,
   (error) => {

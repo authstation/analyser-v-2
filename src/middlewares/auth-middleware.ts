@@ -4,7 +4,14 @@ import { cookie, db, jwt } from "@/framework/facade.js";
 import { refreshTokens, users } from "@/modules/auth/database/models/user.js";
 
 export async function authMiddleware(c: Context, next: Next) {
-  const accessToken = await cookie.getAuth(c);
+  let accessToken = await cookie.getAuth(c);
+
+  if (!accessToken) {
+    const authHeader = c.req.header("authorization") || c.req.header("Authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      accessToken = authHeader.substring(7).trim();
+    }
+  }
 
   if (accessToken) {
     const accessPayload = await jwt.verifyToken(accessToken, "access");

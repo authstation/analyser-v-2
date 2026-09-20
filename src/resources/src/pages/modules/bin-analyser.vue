@@ -307,7 +307,6 @@ const handleFileUpload = async (event: Event) => {
 
   try {
     const response = await axios.post('/api/bin-analyser/parse', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 180000
     });
     
