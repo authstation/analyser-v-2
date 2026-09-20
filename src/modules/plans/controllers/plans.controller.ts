@@ -183,3 +183,56 @@ export const destroy: Handler = async (c: any) => {
     return c.json({ error: error.message || "Failed to delete plan" }, HttpStatusCodes.INTERNAL_SERVER_ERROR);
   }
 };
+
+/**
+ * Why: Allows an authenticated user to submit a plan upgrade request with a bKash TrxID.
+ * When: User chooses a new plan on /plans page and submits upgrade modal.
+ * Where: POST /api/plans/upgrade route.
+ */
+export const upgrade: Handler = async (c: any) => {
+  try {
+    const auth = c.get("auth");
+    if (!auth) {
+      return c.json({ error: "Unauthorized" }, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const body = await c.req.json();
+    const planId = Number(body.planId);
+    const trxId = String(body.trxId || "").trim();
+
+    if (isNaN(planId) || !planId) {
+      return c.json({ error: "Please select a valid plan" }, HttpStatusCodes.BAD_REQUEST);
+    }
+
+    if (!trxId) {
+      return c.json({ error: "Please enter your bKash Transaction ID (TrxID)" }, HttpStatusCodes.BAD_REQUEST);
+    }
+
+    const targetPlan = await db.query.plans.findFirst({
+      where: eq(plans.id, planId),
+    });
+
+    if (!targetPlan || !targetPlan.isActive) {
+      return c.json({ error: "Selected plan is not available" }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    // Update user: set new planId, new trxId, and status pending
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        planId: targetPlan.id,
+        trxId,
+        paymentStatus: "pending",
+      })
+      .where(eq(users.id, auth.id))
+      .returning();
+
+    return c.json({
+      message: `Upgrade request to '${targetPlan.name}' submitted successfully (TrxID: ${trxId}). It will be activated once payment is verified.`,
+      data: updatedUser,
+    });
+  } catch (error: any) {
+    console.error("Plan upgrade request error:", error);
+    return c.json({ error: error.message || "Failed to submit plan upgrade request" }, HttpStatusCodes.INTERNAL_SERVER_ERROR);
+  }
+};

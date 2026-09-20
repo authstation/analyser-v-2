@@ -90,9 +90,20 @@
               </ul>
 
               <template v-if="auth.isAuthenticated">
-                <router-link to="/my-subscriptions" class="btn btn-outline-info w-100 fw-bold mt-auto rounded-3 py-2">
-                  Choose Plan
-                </router-link>
+                <button 
+                  v-if="userProfile?.planId === plan.id && userProfile?.paymentStatus === 'approved'" 
+                  class="btn btn-secondary w-100 fw-bold mt-auto rounded-3 py-2" 
+                  disabled
+                >
+                  <i class="bi bi-check-circle-fill me-1"></i> Current Plan
+                </button>
+                <button 
+                  v-else 
+                  @click="openUpgradeModal(plan)" 
+                  class="btn btn-outline-info w-100 fw-bold mt-auto rounded-3 py-2"
+                >
+                  <i class="bi bi-arrow-up-circle-fill me-1"></i> Choose / Upgrade
+                </button>
               </template>
               <template v-else>
                 <router-link :to="`/register?planId=${plan.id}`" class="btn btn-outline-info w-100 fw-bold mt-auto rounded-3 py-2">
@@ -110,6 +121,82 @@
       </div>
     </main>
 
+    <!-- Plan Upgrade Modal -->
+    <div v-if="selectedUpgradePlan" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-3 z-3 bg-black bg-opacity-75">
+      <div class="card bg-surface border-custom shadow-lg text-start w-100" style="max-width: 480px;">
+        <div class="card-header bg-transparent border-bottom border-custom d-flex justify-content-between align-items-center py-3">
+          <h5 class="mb-0 fw-bold text-info">
+            <i class="bi bi-rocket-takeoff-fill me-2"></i>Upgrade to {{ selectedUpgradePlan.name }}
+          </h5>
+          <button type="button" class="btn-close btn-close-white" @click="selectedUpgradePlan = null"></button>
+        </div>
+        <div class="card-body p-4">
+          <!-- Price & Charge Summary -->
+          <div class="card bg-black bg-opacity-25 border border-custom p-3 mb-3">
+            <div class="d-flex justify-content-between mb-1">
+              <span class="text-muted small">Plan Price:</span>
+              <span class="fw-medium text-light small">৳{{ selectedUpgradePlan.price }}</span>
+            </div>
+            <div class="d-flex justify-content-between mb-2 pb-1 border-bottom border-custom">
+              <span class="text-muted small">bKash Charge (1.8%):</span>
+              <span class="fw-medium text-light small">৳{{ Math.ceil(selectedUpgradePlan.price * 0.018) }}</span>
+            </div>
+            <div class="d-flex justify-content-between fw-bold mb-2">
+              <span>Total Payable:</span>
+              <span class="text-warning fs-5">৳{{ selectedUpgradePlan.price + Math.ceil(selectedUpgradePlan.price * 0.018) }}</span>
+            </div>
+
+            <!-- bKash Send Money Instruction Box -->
+            <div class="p-2 rounded border border-custom text-center mb-1 bg-surface">
+              <p class="mb-0 text-xs text-muted">Send money via bKash to:</p>
+              <h5 class="fw-bold text-success mb-0 tracking-wider font-monospace">01719950891</h5>
+            </div>
+            <div class="text-xs text-muted text-center mt-1">
+              After sending payment, enter the bKash Transaction ID (TrxID) below.
+            </div>
+          </div>
+
+          <!-- Note about billing cycle (Method 1) -->
+          <div class="alert alert-info py-2 px-3 small mb-3 d-flex align-items-center">
+            <i class="bi bi-info-circle-fill me-2 fs-5 flex-shrink-0"></i>
+            <div>Your new <strong>{{ selectedUpgradePlan.durationDays || 30 }}-day</strong> plan cycle will activate once administration verifies this payment.</div>
+          </div>
+
+          <form @submit.prevent="submitUpgrade">
+            <div class="mb-3">
+              <label class="form-label text-muted small fw-bold">bKash Transaction ID (TrxID) *</label>
+              <input 
+                type="text" 
+                v-model="upgradeTrxId" 
+                class="form-control text-warning border-warning" 
+                placeholder="e.g. 9J4K8R2X" 
+                required 
+              />
+            </div>
+
+            <div v-if="upgradeError" class="alert alert-danger py-2 small mb-3">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i> {{ upgradeError }}
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 pt-2 border-top border-custom">
+              <button type="button" class="btn btn-sm btn-secondary" @click="selectedUpgradePlan = null" :disabled="submittingUpgrade">
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-sm btn-primary px-4 fw-bold" :disabled="submittingUpgrade || !upgradeTrxId.trim()">
+                <span v-if="submittingUpgrade" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                {{ submittingUpgrade ? 'Submitting...' : 'Submit Upgrade Request' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Centered Toast Notification -->
+    <div v-if="toastMessage" class="position-fixed top-50 start-50 translate-middle px-4 py-3 rounded shadow-lg text-white text-center z-3" :class="toastType === 'error' ? 'bg-danger' : 'bg-success'" style="pointer-events: none;">
+      <span class="fw-bold fs-6">{{ toastMessage }}</span>
+    </div>
+
     <!-- Footer -->
     <footer class="w-100 py-3 text-center text-muted small plans-footer border-top">
       <div class="container">
@@ -121,6 +208,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useHead } from '@vueuse/head';
 import AppLogo from '@/components/AppLogo.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -134,12 +222,30 @@ useHead({
   ]
 });
 
+const router = useRouter();
 const auth = useAuthStore();
 const ui = useAdminUiStore();
 
 const plans = ref<any[]>([]);
+const userProfile = ref<any>(null);
 const loading = ref(true);
 const error = ref('');
+
+const selectedUpgradePlan = ref<any>(null);
+const upgradeTrxId = ref('');
+const submittingUpgrade = ref(false);
+const upgradeError = ref('');
+
+const toastMessage = ref('');
+const toastType = ref<'error' | 'success'>('success');
+
+const triggerToast = (msg: string, type: 'error' | 'success' = 'success', duration = 3000) => {
+  toastMessage.value = msg;
+  toastType.value = type;
+  setTimeout(() => {
+    toastMessage.value = '';
+  }, duration);
+};
 
 const fetchPlans = async () => {
   loading.value = true;
@@ -148,11 +254,55 @@ const fetchPlans = async () => {
     const res = await axios.get('/api/plans');
     const data = res.data.data || res.data || [];
     plans.value = Array.isArray(data) ? data : [];
+
+    if (auth.isAuthenticated) {
+      try {
+        const profileRes = await axios.get('/api/subscriptions/my');
+        if (profileRes.data?.data) {
+          userProfile.value = profileRes.data.data[0] || {};
+        }
+        const meRes = await axios.get('/api/auth/me');
+        if (meRes.data?.data) {
+          userProfile.value = { ...userProfile.value, ...meRes.data.data };
+        }
+      } catch (err) {
+        console.warn('Could not fetch user profile on plans page:', err);
+      }
+    }
   } catch (err: any) {
     console.error('Failed to load plans:', err);
     error.value = 'Failed to load pricing plans. Please try again later.';
   } finally {
     loading.value = false;
+  }
+};
+
+const openUpgradeModal = (plan: any) => {
+  selectedUpgradePlan.value = plan;
+  upgradeTrxId.value = '';
+  upgradeError.value = '';
+};
+
+const submitUpgrade = async () => {
+  if (!upgradeTrxId.value.trim() || !selectedUpgradePlan.value) return;
+
+  submittingUpgrade.value = true;
+  upgradeError.value = '';
+  try {
+    const res = await axios.post('/api/plans/upgrade', {
+      planId: selectedUpgradePlan.value.id,
+      trxId: upgradeTrxId.value.trim(),
+    });
+
+    selectedUpgradePlan.value = null;
+    triggerToast(res.data?.message || 'Upgrade request submitted successfully! Redirecting to subscriptions...', 'success', 2500);
+    setTimeout(() => {
+      router.push('/my-subscriptions');
+    }, 2000);
+  } catch (err: any) {
+    upgradeError.value = err.response?.data?.message || err.response?.data?.error || 'Failed to submit upgrade request. Please try again.';
+  } finally {
+    submittingUpgrade.value = false;
   }
 };
 
