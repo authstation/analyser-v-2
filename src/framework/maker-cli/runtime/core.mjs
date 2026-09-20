@@ -296,6 +296,14 @@ export async function runRuntime(commandName, rawArgs = []) {
       return;
     }
 
+    if (process.versions?.bun || runtime === "bun") {
+      const bunArgs = watch
+        ? ["--watch", "src/framework/server.ts", ...runtimeArgs]
+        : ["src/framework/server.ts", ...runtimeArgs];
+      await runCommand("bun", bunArgs);
+      return;
+    }
+
     const useWatch = false; // watch || (!prod && forceSrc);
     const tsxWatchIgnore = [
       "--include",
@@ -342,11 +350,21 @@ export async function runRuntime(commandName, rawArgs = []) {
       return;
     }
 
+    if (process.versions?.bun || runtime === "bun") {
+      await runCommand("bun", ["src/framework/queue/worker.ts", ...rawArgs.slice(1)]);
+      return;
+    }
+
     await runNodeScript(packageScript("tsx", "dist/cli.mjs"), ["src/framework/queue/worker.ts", ...rawArgs.slice(1)]);
     return;
   }
 
   if (commandName === "queue:clear") {
+    if (process.versions?.bun || runtime === "bun") {
+      await runCommand("bun", ["src/framework/queue/clear.ts"]);
+      return;
+    }
+
     await runNodeScript(packageScript("tsx", "dist/cli.mjs"), ["src/framework/queue/clear.ts"]);
     return;
   }
@@ -356,6 +374,11 @@ export async function runRuntime(commandName, rawArgs = []) {
       const entry = path.resolve(process.cwd(), "dist/src/framework/scheduler/run.js");
       const { command, args } = runtimeEntryCommand(runtime, entry, runtimeArgs);
       await runCommand(command, args);
+      return;
+    }
+
+    if (process.versions?.bun || runtime === "bun") {
+      await runCommand("bun", ["src/framework/scheduler/run.ts", ...rawArgs.slice(1)]);
       return;
     }
 
