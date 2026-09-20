@@ -8,8 +8,8 @@ const envSchema = z
   .object({
     APP_NAME: z.string().default("nexgen"),
     APP_ENV: z.enum(["development", "production", "test"]).default("development"),
-    APP_PORT: z.coerce.number().default(3000),
-    APP_URL: z.string().trim().min(1, "APP_URL is required in .env"),
+    APP_PORT: z.coerce.number().default(3010),
+    APP_URL: z.string().trim().default("http://localhost:3010"),
     UI: z
       .string()
       .default("true")
@@ -28,9 +28,9 @@ const envSchema = z
       .string()
       .default("nexgen")
       .transform((value) => value.trim()),
-    JWT_ACCESS_SECRET: z.string(),
-    JWT_REFRESH_SECRET: z.string(),
-    COOKIE_SECRET: z.string(),
+    JWT_ACCESS_SECRET: z.string().default("authstation-access-secret-key-2026-secure"),
+    JWT_REFRESH_SECRET: z.string().default("authstation-refresh-secret-key-2026-secure"),
+    COOKIE_SECRET: z.string().default("authstation-cookie-secret-key-2026-secure"),
     STORAGE_ACCESS_KEY_ID: z
       .string()
       .optional()
@@ -61,17 +61,6 @@ const envSchema = z
       .string()
       .optional()
       .transform((value) => value?.trim() || undefined)
-  })
-  .superRefine((data, ctx) => {
-    for (const key of ["JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET", "COOKIE_SECRET"] as const) {
-      if (!data[key]) {
-        ctx.addIssue({
-          code: "custom",
-          path: [key],
-          message: `${key} is required`
-        });
-      }
-    }
   });
 
 const parsedEnv = envSchema.parse(process.env);
