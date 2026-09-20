@@ -13,5 +13,5 @@ if (isFalse(process.env.UI) || fileDisabled) {
   process.exit(0);
 }
 
-execSync("vite build --config src/resources/vite.config.ts", { stdio: "inherit" });
+execSync("bun run vite build --config src/resources/vite.config.ts", { stdio: "inherit" });
 

@@ -1,19 +1,23 @@
-# ── Stage 1: Frontend Build ────────────────────────────────
-# Vue/Vite frontend build করতে এই stage দরকার
-# Backend এর জন্য কোনো compile নেই — Bun TypeScript সরাসরি চালায়
+# ── Stage 1: Build Frontend & Install Dependencies ──────────
 FROM oven/bun:latest AS builder
 
 WORKDIR /app
 
 COPY package.json ./
+
+# Production dependencies install (runs once)
+RUN bun install --production
+RUN cp -r node_modules /tmp/node_modules_prod
+
+# Full install for Vite UI build tools
 RUN bun install
 
 COPY . .
 
-# শুধু Vue frontend build করো (tsc লাগবে না!)
-RUN bun run build:ui
+# Vue/Vite frontend build (tsc ছাড়া কেবল UI বান্ডেল)
+RUN bun src/framework/maker-cli/runtime/build-ui.mjs
 
-# ── Stage 2: Production ─────────────────────────────────────
+# ── Stage 2: Production Runner ──────────────────────────────
 FROM oven/bun:latest AS runner
 
 WORKDIR /app
@@ -21,9 +25,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV APP_PORT=3010
 
-# Production deps only — dev tools বাদ
+# Direct copy from builder — কোনো ডাবল ডাউনলোড বা ইনস্টলেশন নেই!
+COPY --from=builder /tmp/node_modules_prod ./node_modules
 COPY package.json ./
-RUN bun install --production
 
 # Backend TypeScript source — Bun সরাসরি চালায়
 COPY src ./src
@@ -31,7 +35,7 @@ COPY src ./src
 # Vue frontend build output
 COPY --from=builder /app/public ./public
 
-# Drizzle config (migration runner এর জন্য)
+# Config files
 COPY drizzle.config.ts ./
 COPY tsconfig.json ./
 
