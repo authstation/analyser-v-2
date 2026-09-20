@@ -184,14 +184,9 @@
                   <i class="bi bi-person-check me-2 text-info"></i><span>My Profile</span>
                 </router-link>
               </li>
-              <li>
+              <li v-if="!isAdmin">
                 <router-link class="dropdown-item py-2 d-flex align-items-center" to="/my-subscriptions" @click="isUserMenuOpen = false">
                   <i class="bi bi-building-check me-2 text-primary"></i><span>My Subscriptions</span>
-                </router-link>
-              </li>
-              <li v-if="isAdmin">
-                <router-link class="dropdown-item py-2 d-flex align-items-center" to="/admin/subscriptions" @click="isUserMenuOpen = false">
-                  <i class="bi bi-shield-lock me-2 text-warning"></i><span>Office Approvals</span>
                 </router-link>
               </li>
               <li>
