@@ -85,15 +85,234 @@ export async function initDatabase() {
   databaseInstance = drizzlePg(pool, { schema });
 
   try {
-    const { migrate } = await import("drizzle-orm/postgres-js/migrator");
-    const migrationsFolder = path.resolve(process.cwd(), "src/database/migrations/postgresql");
-    await migrate(databaseInstance, { migrationsFolder });
-    console.log("[Database] Auto-migrations applied successfully for PostgreSQL");
+    await ensurePostgresTables(pool);
+    console.log("[Database] Schema & tables initialized successfully for PostgreSQL");
   } catch (migErr: any) {
-    console.warn("[Database] Auto-migration note:", migErr?.message || migErr);
+    console.warn("[Database] Schema init warning:", migErr?.message || migErr);
   }
 
   return databaseInstance;
+}
+
+async function ensurePostgresTables(sql: any) {
+  await sql.unsafe(`
+    DO $$ BEGIN
+      CREATE TYPE "role" AS ENUM ('admin', 'user');
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$;
+
+    CREATE TABLE IF NOT EXISTS "plans" (
+      "id" serial PRIMARY KEY,
+      "name" text NOT NULL,
+      "price" integer DEFAULT 0 NOT NULL,
+      "duration_days" integer DEFAULT 30 NOT NULL,
+      "max_circles" integer DEFAULT 1 NOT NULL,
+      "is_active" boolean DEFAULT true NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      "updated_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "users" (
+      "id" serial PRIMARY KEY,
+      "name" text,
+      "email" text NOT NULL UNIQUE,
+      "password" text NOT NULL,
+      "role" "role" DEFAULT 'user' NOT NULL,
+      "plan_id" integer,
+      "plan_start_date" timestamp,
+      "trx_id" text,
+      "payment_status" text DEFAULT 'none',
+      "has_changed_circle" boolean DEFAULT false NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "role" "role" DEFAULT 'user' NOT NULL;
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "plan_id" integer;
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "plan_start_date" timestamp;
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "trx_id" text;
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "payment_status" text DEFAULT 'none';
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "has_changed_circle" boolean DEFAULT false NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS "divisions" (
+      "id" serial PRIMARY KEY,
+      "name" text NOT NULL UNIQUE,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "circles" (
+      "id" serial PRIMARY KEY,
+      "name" text NOT NULL,
+      "division_id" integer REFERENCES "divisions"("id") ON DELETE cascade NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      UNIQUE ("name", "division_id")
+    );
+
+    CREATE TABLE IF NOT EXISTS "police_stations" (
+      "id" serial PRIMARY KEY,
+      "name" text NOT NULL,
+      "circle_id" integer REFERENCES "circles"("id") ON DELETE cascade NOT NULL,
+      "division_id" integer REFERENCES "divisions"("id") ON DELETE cascade NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      UNIQUE ("name", "circle_id")
+    );
+
+    CREATE TABLE IF NOT EXISTS "subscriptions" (
+      "id" serial PRIMARY KEY,
+      "user_id" integer REFERENCES "users"("id") ON DELETE cascade NOT NULL,
+      "circle_id" integer REFERENCES "circles"("id") ON DELETE cascade NOT NULL,
+      "status" text DEFAULT 'pending' NOT NULL,
+      "trx_id" text,
+      "payment_method" text,
+      "is_addon" boolean DEFAULT false NOT NULL,
+      "addon_price" integer DEFAULT 300 NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      "updated_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "app_settings" (
+      "id" serial PRIMARY KEY,
+      "key" text NOT NULL UNIQUE,
+      "value" text NOT NULL,
+      "description" text,
+      "updated_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "item_mappings" (
+      "id" serial PRIMARY KEY,
+      "module_name" text NOT NULL,
+      "item_name" text NOT NULL,
+      "common_item" text NOT NULL,
+      "status" text NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      UNIQUE ("module_name", "item_name")
+    );
+
+    CREATE TABLE IF NOT EXISTS "ibas_offices" (
+      "id" serial PRIMARY KEY,
+      "office_name" text NOT NULL,
+      "area_name" text NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "penalty_rules" (
+      "id" serial PRIMARY KEY,
+      "amount" integer NOT NULL,
+      "effective_date" timestamp NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "column_mappings" (
+      "id" serial PRIMARY KEY,
+      "module" text DEFAULT 'bin_analyser' NOT NULL,
+      "excel_header" text NOT NULL,
+      "db_column" text NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "bin_data" (
+      "id" serial PRIMARY KEY,
+      "bin" text UNIQUE,
+      "entity_name" text,
+      "bin_issue_date" timestamp,
+      "bin_status" text DEFAULT 'Active',
+      "forced_registration" text,
+      "major_area" text,
+      "manufacturing_area" text,
+      "service_area" text,
+      "email" text,
+      "mobile" text,
+      "address" text,
+      "hq_address" text,
+      "circle_id" integer REFERENCES "circles"("id"),
+      "division_id" integer REFERENCES "divisions"("id"),
+      "police_station_id" integer REFERENCES "police_stations"("id"),
+      "e_tin" text,
+      "raw_json" text,
+      "uploaded_by" integer REFERENCES "users"("id"),
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "return_data" (
+      "id" serial PRIMARY KEY,
+      "division_id" integer REFERENCES "divisions"("id"),
+      "circle_id" integer REFERENCES "circles"("id"),
+      "bin" text NOT NULL,
+      "submission_id" text,
+      "tax_period" timestamp,
+      "has_activities" text,
+      "total_sales_value" numeric(20, 2),
+      "total_payable_vat" numeric(20, 2),
+      "total_payable_sd" numeric(20, 2),
+      "total_input_tax_credit_value" numeric(20, 2),
+      "total_input_tax_credit_vat" numeric(20, 2),
+      "increasing_adjustment" numeric(20, 2),
+      "decreasing_adjustment" numeric(20, 2),
+      "net_payable_vat" numeric(20, 2),
+      "net_payable_sd" numeric(20, 2),
+      "fine_penalty" numeric(20, 2),
+      "deposited_vat" numeric(20, 2),
+      "deposited_sd" numeric(20, 2),
+      "closing_balance_vat" numeric(20, 2),
+      "closing_balance_sd" numeric(20, 2),
+      "vds_increasing" numeric(20, 2),
+      "vds_decreasing" numeric(20, 2),
+      "advanced_tax_paid" numeric(20, 2),
+      "submission_date" text,
+      "last_amendment_date" text,
+      "raw_json" text,
+      "uploaded_by" integer REFERENCES "users"("id"),
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      CONSTRAINT "return_data_bin_tax_period_uniq" UNIQUE ("bin", "tax_period")
+    );
+
+    CREATE TABLE IF NOT EXISTS "email_verification_tokens" (
+      "id" serial PRIMARY KEY,
+      "email" varchar(255) NOT NULL,
+      "token" text NOT NULL,
+      "expires_at" timestamp NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "password_resets" (
+      "id" serial PRIMARY KEY,
+      "user_id" integer REFERENCES "users"("id") ON UPDATE cascade ON DELETE cascade,
+      "email" text NOT NULL,
+      "token" text NOT NULL,
+      "expires_at" timestamp NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "refresh_tokens" (
+      "id" serial PRIMARY KEY,
+      "user_id" integer REFERENCES "users"("id") ON UPDATE cascade ON DELETE cascade,
+      "jti" varchar(191) NOT NULL UNIQUE,
+      "revoked" boolean DEFAULT false,
+      "expires_at" timestamp NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "notifications" (
+      "id" serial PRIMARY KEY,
+      "user_id" integer REFERENCES "users"("id") ON DELETE cascade,
+      "title" text NOT NULL,
+      "message" text NOT NULL,
+      "is_read" boolean DEFAULT false NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "roles" (
+      "id" integer PRIMARY KEY,
+      "name" varchar(255) NOT NULL UNIQUE,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      "updated_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    -- Insert default plans if none exist
+    INSERT INTO "plans" ("name", "price", "duration_days", "max_circles", "is_active")
+    SELECT 'Free Trial', 0, 30, 1, true
+    WHERE NOT EXISTS (SELECT 1 FROM "plans");
+  `);
 }
 
 /**
