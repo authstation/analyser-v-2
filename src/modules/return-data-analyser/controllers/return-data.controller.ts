@@ -558,19 +558,38 @@ export const parse: Handler = async (c: any) => {
     }
 
     let dbMappings = await db.query.columnMappings.findMany({
-      where: (mappings: any, { eq }: any) => eq(mappings.module, 'return_data')
+      where: (mappings: any, { or, eq }: any) => or(eq(mappings.module, 'return_data'), eq(mappings.module, 'return'))
     });
     
+    const defaultEntries = Object.entries(DEFAULT_RETURN_DATA_MAPPINGS).map(([dbColumn, excelHeader]) => ({
+      id: 0,
+      module: 'return_data',
+      dbColumn,
+      excelHeader,
+      createdAt: new Date(),
+    }));
+
     if (dbMappings.length === 0) {
-      dbMappings = Object.entries(DEFAULT_RETURN_DATA_MAPPINGS).map(([dbColumn, excelHeader]) => ({
-        id: 0,
-        module: 'return_data',
-        dbColumn,
-        excelHeader,
-        createdAt: new Date(),
-      }));
+      dbMappings = defaultEntries;
+    } else {
+      defaultEntries.forEach(def => {
+        const existing = dbMappings.find((m: any) => m.dbColumn === def.dbColumn);
+        if (!existing) {
+          dbMappings.push(def);
+        } else if (existing.excelHeader) {
+          const existingHeaders = existing.excelHeader.split(',').map((s: string) => s.trim().toLowerCase());
+          const defHeaders = def.excelHeader.split(',').map((s: string) => s.trim());
+          const newToAdd = defHeaders.filter(dh => !existingHeaders.includes(dh.toLowerCase()));
+          if (newToAdd.length > 0) {
+            existing.excelHeader = `${existing.excelHeader}, ${newToAdd.join(', ')}`;
+          }
+        }
+      });
     }
-    const mappingValues = dbMappings.map((m: any) => m.excelHeader.trim().toLowerCase());
+
+    const mappingValues = dbMappings.flatMap((m: any) =>
+      (m.excelHeader || '').split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean)
+    );
 
     let headerRowIndex = 0;
     let maxMatches = 0;

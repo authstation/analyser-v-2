@@ -116,22 +116,22 @@
                     <tbody>
                       <tr v-for="(row, index) in parsedData.slice(0, 50)" :key="row.tempId || index">
                         <td class="text-center text-muted">{{ index + 1 }}</td>
-                        <td>{{ formatDateDisplay(row.binIssueDate) || '-' }}</td>
+                        <td>{{ formatDateDisplay(row.binIssueDate || row.bin_issue_date) || '-' }}</td>
                         <td><span class="badge bg-info text-dark">{{ row.division || '-' }}</span></td>
                         <td><span class="badge bg-secondary">{{ row.circle || '-' }}</span></td>
                         <td class="fw-bold text-warning">{{ row.bin || '-' }}</td>
-                        <td class="fw-bold">{{ row.entityName || '-' }}</td>
+                        <td class="fw-bold">{{ row.entityName || row.entity_name || '-' }}</td>
                         <td><span class="d-inline-block text-truncate" style="max-width: 150px;" :title="row.address">{{ row.address || '-' }}</span></td>
-                        <td>{{ row.policeStation || '-' }}</td>
+                        <td>{{ row.policeStation || row.police_station || '-' }}</td>
                         <td>{{ row.mobile || '-' }}</td>
                         <td>{{ row.email || '-' }}</td>
-                        <td><span class="d-inline-block text-truncate" style="max-width: 150px;" :title="row.hqAddress">{{ row.hqAddress || '-' }}</span></td>
-                        <td>{{ row.forcedRegistration || '-' }}</td>
-                        <td><span class="d-inline-block text-truncate" style="max-width: 100px;" :title="row.majorAreaOfEconomicActivity">{{ row.majorAreaOfEconomicActivity || '-' }}</span></td>
-                        <td><span class="d-inline-block text-truncate" style="max-width: 100px;" :title="row.areasOfManufacturing">{{ row.areasOfManufacturing || '-' }}</span></td>
-                        <td><span class="d-inline-block text-truncate" style="max-width: 100px;" :title="row.areasOfService">{{ row.areasOfService || '-' }}</span></td>
-                        <td><span class="badge" :class="row.binStatus === 'Active' ? 'bg-success' : 'bg-danger'">{{ row.binStatus || '-' }}</span></td>
-                        <td>{{ row.eTin || '-' }}</td>
+                        <td><span class="d-inline-block text-truncate" style="max-width: 150px;" :title="row.hqAddress || row.hq_address">{{ row.hqAddress || row.hq_address || '-' }}</span></td>
+                        <td>{{ row.forcedRegistration || row.forced_registration || '-' }}</td>
+                        <td><span class="d-inline-block text-truncate" style="max-width: 100px;" :title="row.majorAreaOfEconomicActivity || row.major_area">{{ row.majorAreaOfEconomicActivity || row.major_area || '-' }}</span></td>
+                        <td><span class="d-inline-block text-truncate" style="max-width: 100px;" :title="row.areasOfManufacturing || row.manufacturing_area">{{ row.areasOfManufacturing || row.manufacturing_area || '-' }}</span></td>
+                        <td><span class="d-inline-block text-truncate" style="max-width: 100px;" :title="row.areasOfService || row.service_area">{{ row.areasOfService || row.service_area || '-' }}</span></td>
+                        <td><span class="badge" :class="(row.binStatus || row.bin_status) === 'Active' ? 'bg-success' : 'bg-danger'">{{ row.binStatus || row.bin_status || '-' }}</span></td>
+                        <td>{{ row.eTin || row.e_tin || '-' }}</td>
                       </tr>
                     </tbody>
                   </table>

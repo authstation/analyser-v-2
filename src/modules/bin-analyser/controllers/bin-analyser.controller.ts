@@ -301,28 +301,28 @@ function setting(map: Record<string, string>, key: string): string {
 
 const DEFAULT_MODULE_MAPPINGS: Record<string, Record<string, string>> = {
   bin_analyser: {
-    bin_issue_date: 'BIN Issue Date',
-    division: 'Division',
-    circle: 'Circle',
-    bin: 'BIN',
-    entity_name: 'Name',
-    address: 'Factory / Business Operation Address',
-    police_station: 'Police Station',
-    mobile: 'Mobile Number',
-    email: 'Email',
-    hq_address: 'Registered HQ Address',
-    forced_registration: 'Forced Registration',
-    major_area: 'Major Area of Economic Activity',
-    manufacturing_area: 'Areas of Manufacturing',
-    service_area: 'Areas of Service',
-    bin_status: 'BIN Status',
-    e_tin: 'e-TIN',
+    bin_issue_date: 'BIN Issue Date, Issue Date, Registration Date',
+    division: 'Division, VAT Division, Commissionerate',
+    circle: 'Circle, VAT Circle',
+    bin: 'BIN, Business Identification Number, BIN Number',
+    entity_name: 'Name, Entity Name, Name of the Entity, Taxpayer Name, Company Name, Business Name, Name of Entity',
+    address: 'Factory / Business Operation Address, Address, Factory Address, Business Address, Operational Address',
+    police_station: 'Police Station, Thana, PS',
+    mobile: 'Mobile Number, Mobile, Contact Number, Phone, Phone Number',
+    email: 'Email, Email Address, E-mail',
+    hq_address: 'Registered HQ Address, HQ Address, Head Office Address, Headquarter Address',
+    forced_registration: 'Forced Registration, Forced',
+    major_area: 'Major Area of Economic Activity, Economic Activity, Major Area',
+    manufacturing_area: 'Areas of Manufacturing, Manufacturing Area, Manufacturing',
+    service_area: 'Areas of Service, Service Area, Service',
+    bin_status: 'BIN Status, Status',
+    e_tin: 'e-TIN, TIN, eTIN, Tax Identification Number',
   }
 };
 
 async function ensureDefaultMappings(moduleName: string) {
   const existing = await db.query.columnMappings.findMany({
-    where: (mappings: any, { eq }: any) => eq(mappings.module, moduleName)
+    where: (mappings: any, { or, eq }: any) => or(eq(mappings.module, moduleName), eq(mappings.module, 'bin'))
   });
   if (existing.length === 0 && (DEFAULT_MODULE_MAPPINGS as any)[moduleName]) {
     const toInsert = Object.entries((DEFAULT_MODULE_MAPPINGS as any)[moduleName]).map(([dbColumn, excelHeader]) => ({
@@ -352,8 +352,8 @@ export const parse: Handler = async (c: any) => {
     }
 
     const cfg = await getSettings(['common_max_file_size_mb', 'common_max_file_rows', 'bin_format_regex', 'bin_format_description']);
-    const maxSizeMb = parseFloat(setting(cfg, 'common_max_file_size_mb') || '2');
-    const maxRows = parseInt(setting(cfg, 'common_max_file_rows') || '10000');
+    const maxSizeMb = parseFloat(setting(cfg, 'common_max_file_size_mb') || '50');
+    const maxRows = parseInt(setting(cfg, 'common_max_file_rows') || '100000', 10);
 
     if (file.size > maxSizeMb * 1024 * 1024) {
       return c.json({ error: `File size exceeds the maximum allowed ${maxSizeMb}MB.` }, 400);
@@ -380,19 +380,41 @@ export const parse: Handler = async (c: any) => {
 
     await ensureDefaultMappings('bin_analyser').catch(() => {});
     let dbMappings = await db.query.columnMappings.findMany({
-      where: (mappings: any, { eq }: any) => eq(mappings.module, 'bin_analyser')
+      where: (mappings: any, { or, eq }: any) => or(eq(mappings.module, 'bin_analyser'), eq(mappings.module, 'bin'))
     });
     
+    // Merge with defaults so any missing column mapping still gets detected
+    const defaultEntries = Object.entries(DEFAULT_MODULE_MAPPINGS['bin_analyser']).map(([dbColumn, excelHeader]) => ({
+      id: 0,
+      module: 'bin_analyser',
+      dbColumn,
+      excelHeader: excelHeader as string,
+      createdAt: new Date(),
+    }));
+
     if (dbMappings.length === 0) {
-      dbMappings = Object.entries(DEFAULT_MODULE_MAPPINGS['bin_analyser']).map(([dbColumn, excelHeader]) => ({
-        id: 0,
-        module: 'bin_analyser',
-        dbColumn,
-        excelHeader: excelHeader as string,
-        createdAt: new Date(),
-      }));
+      dbMappings = defaultEntries;
+    } else {
+      // If dbMappings is missing some columns or has narrow definitions, augment them
+      defaultEntries.forEach(def => {
+        const existing = dbMappings.find((m: any) => m.dbColumn === def.dbColumn);
+        if (!existing) {
+          dbMappings.push(def);
+        } else if (existing.excelHeader) {
+          // Merge defaults as fallback synonyms
+          const existingHeaders = existing.excelHeader.split(',').map((s: string) => s.trim().toLowerCase());
+          const defHeaders = def.excelHeader.split(',').map((s: string) => s.trim());
+          const newToAdd = defHeaders.filter(dh => !existingHeaders.includes(dh.toLowerCase()));
+          if (newToAdd.length > 0) {
+            existing.excelHeader = `${existing.excelHeader}, ${newToAdd.join(', ')}`;
+          }
+        }
+      });
     }
-    const mappingValues = dbMappings.map((m: any) => m.excelHeader.trim().toLowerCase());
+
+    const mappingValues = dbMappings.flatMap((m: any) =>
+      (m.excelHeader || '').split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean)
+    );
 
     let headerRowIndex = 0;
     let maxMatches = 0;
@@ -402,7 +424,8 @@ export const parse: Handler = async (c: any) => {
       let matches = 0;
       for (const cell of row) {
         if (typeof cell === 'string') {
-          if (mappingValues.includes(cell.replace(/\r?\n|\r/g, ' ').trim().toLowerCase())) matches++;
+          const cleanCell = cell.replace(/\r?\n|\r/g, ' ').trim().toLowerCase();
+          if (mappingValues.includes(cleanCell)) matches++;
         }
       }
       if (matches > maxMatches) { maxMatches = matches; headerRowIndex = i; }
@@ -433,7 +456,7 @@ export const parse: Handler = async (c: any) => {
       for (let j = 0; j < headers.length; j++) {
         const header = headers[j];
         if (header && typeof header === 'string') {
-          const cleanHeader = header.replace(/\\r?\\n|\\r/g, ' ').trim();
+          const cleanHeader = header.replace(/\r?\n|\r/g, ' ').trim();
           let cellValue = rowArr[j];
           if (rowArrDates[j] instanceof Date && !isNaN(rowArrDates[j].getTime())) {
             const dObj = rowArrDates[j] as Date;
@@ -458,12 +481,65 @@ export const parse: Handler = async (c: any) => {
           const combinedValues: string[] = [];
           targetHeaders.forEach((th: string) => {
             const rowKey = Object.keys(row).find(k => k.trim().toLowerCase() === th);
-            if (rowKey && row[rowKey] !== undefined && row[rowKey] !== null) {
-              combinedValues.push(String(row[rowKey]));
+            if (rowKey && row[rowKey] !== undefined && row[rowKey] !== null && String(row[rowKey]).trim() !== '') {
+              const valStr = String(row[rowKey]).trim();
+              if (!combinedValues.includes(valStr)) {
+                combinedValues.push(valStr);
+              }
             }
           });
           if (combinedValues.length > 0) {
-            mappedRow[mapping.dbColumn] = combinedValues.join(', ');
+            const val = combinedValues.join(', ');
+            mappedRow[mapping.dbColumn] = val;
+
+            // Map both snake_case and camelCase keys for UI and backend saving compatibility
+            if (mapping.dbColumn === 'bin_issue_date' || mapping.dbColumn === 'binIssueDate') {
+              mappedRow.bin_issue_date = val;
+              mappedRow.binIssueDate = val;
+            }
+            if (mapping.dbColumn === 'division') mappedRow.division = val;
+            if (mapping.dbColumn === 'circle') mappedRow.circle = val;
+            if (mapping.dbColumn === 'bin') mappedRow.bin = val;
+            if (mapping.dbColumn === 'entity_name' || mapping.dbColumn === 'entityName') {
+              mappedRow.entity_name = val;
+              mappedRow.entityName = val;
+            }
+            if (mapping.dbColumn === 'address') mappedRow.address = val;
+            if (mapping.dbColumn === 'police_station' || mapping.dbColumn === 'policeStation') {
+              mappedRow.police_station = val;
+              mappedRow.policeStation = val;
+            }
+            if (mapping.dbColumn === 'mobile') mappedRow.mobile = val;
+            if (mapping.dbColumn === 'email') mappedRow.email = val;
+            if (mapping.dbColumn === 'hq_address' || mapping.dbColumn === 'hqAddress') {
+              mappedRow.hq_address = val;
+              mappedRow.hqAddress = val;
+            }
+            if (mapping.dbColumn === 'forced_registration' || mapping.dbColumn === 'forcedRegistration') {
+              mappedRow.forced_registration = val;
+              mappedRow.forcedRegistration = val;
+            }
+            if (mapping.dbColumn === 'major_area' || mapping.dbColumn === 'majorAreaOfEconomicActivity') {
+              mappedRow.major_area = val;
+              mappedRow.majorAreaOfEconomicActivity = val;
+            }
+            if (mapping.dbColumn === 'manufacturing_area' || mapping.dbColumn === 'areasOfManufacturing') {
+              mappedRow.manufacturing_area = val;
+              mappedRow.areasOfManufacturing = val;
+            }
+            if (mapping.dbColumn === 'service_area' || mapping.dbColumn === 'areasOfService') {
+              mappedRow.service_area = val;
+              mappedRow.areasOfService = val;
+            }
+            if (mapping.dbColumn === 'bin_status' || mapping.dbColumn === 'binStatus') {
+              mappedRow.bin_status = val;
+              mappedRow.binStatus = val;
+            }
+            if (mapping.dbColumn === 'e_tin' || mapping.dbColumn === 'eTin') {
+              mappedRow.e_tin = val;
+              mappedRow.eTin = val;
+            }
+
             hasValidData = true;
           }
         });
@@ -508,9 +584,9 @@ export const save: Handler = async (c: any) => {
     const approvedCircleIds = await getUserApprovedCircleIds(user);
 
     data.forEach((row: any) => {
-      const divisionName = row.division?.trim() ?? null;
-      const circleName = row.circle?.trim() ?? null;
-      const psName = row.policeStation?.trim() ?? null;
+      const divisionName = (row.division || row.division_name)?.trim() ?? null;
+      const circleName = (row.circle || row.circle_name)?.trim() ?? null;
+      const psName = (row.policeStation || row.police_station)?.trim() ?? null;
       if (divisionName) uniqueDivisions.add(divisionName);
       if (divisionName && circleName) {
         uniqueCircles.set(`${divisionName}-${circleName}`, { circleName, divisionName });
@@ -555,23 +631,26 @@ export const save: Handler = async (c: any) => {
     const ALLOWED_FORCED = ['Yes', 'No'];
 
     const toInsert = data.map((row: any) => {
-      const binStatus = ALLOWED_BIN_STATUS.includes(row.binStatus) ? row.binStatus : 'Active';
-      const forcedRegistration = ALLOWED_FORCED.includes(row.forcedRegistration) ? row.forcedRegistration : 'No';
+      const binStatusVal = row.binStatus || row.bin_status;
+      const binStatus = ALLOWED_BIN_STATUS.includes(binStatusVal) ? binStatusVal : 'Active';
+      const forcedVal = row.forcedRegistration || row.forced_registration;
+      const forcedRegistration = ALLOWED_FORCED.includes(forcedVal) ? forcedVal : 'No';
 
+      const rawDate = row.binIssueDate || row.bin_issue_date;
       let issueDate = null;
-      if (row.binIssueDate) {
-        if (typeof row.binIssueDate === 'string') {
-          if (row.binIssueDate.includes('T') && row.binIssueDate.endsWith('Z')) {
-            issueDate = new Date(row.binIssueDate);
+      if (rawDate) {
+        if (typeof rawDate === 'string') {
+          if (rawDate.includes('T') && rawDate.endsWith('Z')) {
+            issueDate = new Date(rawDate);
           } else {
             let y = 0, m = -1, d = 0;
             let separator = null;
-            if (row.binIssueDate.includes('-')) separator = '-';
-            else if (row.binIssueDate.includes('/')) separator = '/';
-            else if (row.binIssueDate.includes('.')) separator = '.';
+            if (rawDate.includes('-')) separator = '-';
+            else if (rawDate.includes('/')) separator = '/';
+            else if (rawDate.includes('.')) separator = '.';
             
             if (separator) {
-              const parts = row.binIssueDate.split(separator).map((p: string) => p.trim());
+              const parts = rawDate.split(separator).map((p: string) => p.trim());
               if (parts.length >= 3) {
                 if (parts[0].length === 4) {
                   y = parseInt(parts[0], 10);
@@ -599,38 +678,50 @@ export const save: Handler = async (c: any) => {
       }
 
       let divisionId: number | null = null;
-      if (row.division) {
-        const d = existingDivisions.find((d: any) => d.name.toLowerCase() === row.division.trim().toLowerCase());
+      const divName = (row.division || row.division_name)?.trim();
+      if (divName) {
+        const d = existingDivisions.find((d: any) => d.name.toLowerCase() === divName.toLowerCase());
         if (d) divisionId = d.id;
       }
 
       let circleId: number | null = null;
-      if (row.circle) {
+      const circName = (row.circle || row.circle_name)?.trim();
+      if (circName) {
         if (divisionId) {
-          const c = existingCircles.find((c: any) => c.name.toLowerCase() === row.circle.trim().toLowerCase() && c.divisionId === divisionId);
+          const c = existingCircles.find((c: any) => c.name.toLowerCase() === circName.toLowerCase() && c.divisionId === divisionId);
           if (c) circleId = c.id;
         } else {
-          const matchingCircles = existingCircles.filter((c: any) => c.name.toLowerCase() === row.circle.trim().toLowerCase());
+          const matchingCircles = existingCircles.filter((c: any) => c.name.toLowerCase() === circName.toLowerCase());
           if (matchingCircles.length === 1) circleId = matchingCircles[0]?.id || null;
         }
       }
 
       let policeStationId: number | null = null;
-      if (row.policeStation) {
-        const ps = existingPoliceStations.find((p: any) => p.name.toLowerCase() === row.policeStation.trim().toLowerCase() && p.circleId === circleId)
-          || existingPoliceStations.find((p: any) => p.name.toLowerCase() === row.policeStation.trim().toLowerCase());
+      const psName = (row.policeStation || row.police_station)?.trim();
+      if (psName) {
+        const ps = existingPoliceStations.find((p: any) => p.name.toLowerCase() === psName.toLowerCase() && p.circleId === circleId)
+          || existingPoliceStations.find((p: any) => p.name.toLowerCase() === psName.toLowerCase());
         if (ps) policeStationId = ps.id;
       }
 
       return {
-        bin: row.bin || null, entityName: row.entityName || null, binIssueDate: issueDate,
-        binStatus, forcedRegistration,
-        majorAreaOfEconomicActivity: row.majorAreaOfEconomicActivity || null,
-        areasOfManufacturing: row.areasOfManufacturing || null,
-        areasOfService: row.areasOfService || null,
-        email: row.email || null, mobile: row.mobile || null,
-        address: row.address || null, divisionId, circleId, policeStationId,
-        eTin: row.eTin || null, rawJson: row.rawJson || null,
+        bin: row.bin || null,
+        entityName: row.entityName || row.entity_name || null,
+        binIssueDate: issueDate,
+        binStatus,
+        forcedRegistration,
+        majorAreaOfEconomicActivity: row.majorAreaOfEconomicActivity || row.major_area || null,
+        areasOfManufacturing: row.areasOfManufacturing || row.manufacturing_area || null,
+        areasOfService: row.areasOfService || row.service_area || null,
+        email: row.email || null,
+        mobile: row.mobile || null,
+        address: row.address || null,
+        hqAddress: row.hqAddress || row.hq_address || null,
+        divisionId,
+        circleId,
+        policeStationId,
+        eTin: row.eTin || row.e_tin || null,
+        rawJson: row.rawJson || null,
         uploadedBy: user?.id ?? null
       };
     });

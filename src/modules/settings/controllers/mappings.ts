@@ -1,20 +1,20 @@
 import type { Handler } from "hono";
 import { db } from "@/framework/facade.js";
 import { columnMappings } from "@/modules/bin-analyser/database/models/bin-analyser.js";
-import { eq } from "drizzle-orm";
+import { or, eq } from "drizzle-orm";
 
-const DEFAULT_MODULE_MAPPINGS: Record<string, any> = {
-  bin_analyser: {}, // Optional: Add default mappings if needed
-  ibas: {},
-  return_data: {},
-  revenue: {}
+const normalizeModule = (mod: string) => {
+  if (mod === 'bin' || mod === 'bin_analyser') return 'bin_analyser';
+  if (mod === 'return' || mod === 'return_data') return 'return_data';
+  return mod;
 };
 
 export const getMappings: Handler = async (c) => {
   try {
-    const moduleName = c.req.query('module') || 'bin_analyser';
+    const rawModule = c.req.query('module') || 'bin_analyser';
+    const moduleName = normalizeModule(rawModule);
     let data = await db.query.columnMappings.findMany({
-      where: (mappings, { eq }) => eq(mappings.module, moduleName)
+      where: (mappings, { or, eq }) => or(eq(mappings.module, moduleName), eq(mappings.module, rawModule))
     });
 
     return c.json({ data });
@@ -26,15 +26,18 @@ export const getMappings: Handler = async (c) => {
 export const updateMappings: Handler = async (c) => {
   try {
     const { mappings } = await c.req.json();
-    const moduleName = c.req.query('module') || 'bin_analyser';
+    const rawModule = c.req.query('module') || 'bin_analyser';
+    const moduleName = normalizeModule(rawModule);
     if (!mappings || typeof mappings !== 'object') {
       return c.json({ error: 'Invalid mappings data' }, 400);
     }
 
-    // Clear old mappings for this module
-    await db.delete(columnMappings).where(eq(columnMappings.module, moduleName));
+    // Clear old mappings for both module aliases
+    await db.delete(columnMappings).where(
+      or(eq(columnMappings.module, moduleName), eq(columnMappings.module, rawModule))
+    );
 
-    // Insert new mappings
+    // Insert new mappings under normalized module name and alias
     const toInsert = Object.keys(mappings).map(dbKey => ({
       module: moduleName,
       dbColumn: dbKey,
