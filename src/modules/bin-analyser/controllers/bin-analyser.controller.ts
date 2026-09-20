@@ -301,22 +301,22 @@ function setting(map: Record<string, string>, key: string): string {
 
 const DEFAULT_MODULE_MAPPINGS: Record<string, Record<string, string>> = {
   bin_analyser: {
-    bin_issue_date: 'BIN Issue Date, Issue Date, Registration Date',
-    division: 'Division, VAT Division, Commissionerate',
-    circle: 'Circle, VAT Circle',
-    bin: 'BIN, Business Identification Number, BIN Number',
-    entity_name: 'Name, Entity Name, Name of the Entity, Taxpayer Name, Company Name, Business Name, Name of Entity',
-    address: 'Factory / Business Operation Address, Address, Factory Address, Business Address, Operational Address',
-    police_station: 'Police Station, Thana, PS',
-    mobile: 'Mobile Number, Mobile, Contact Number, Phone, Phone Number',
-    email: 'Email, Email Address, E-mail',
-    hq_address: 'Registered HQ Address, HQ Address, Head Office Address, Headquarter Address',
-    forced_registration: 'Forced Registration, Forced',
-    major_area: 'Major Area of Economic Activity, Economic Activity, Major Area',
-    manufacturing_area: 'Areas of Manufacturing, Manufacturing Area, Manufacturing',
-    service_area: 'Areas of Service, Service Area, Service',
-    bin_status: 'BIN Status, Status',
-    e_tin: 'e-TIN, TIN, eTIN, Tax Identification Number',
+    bin_issue_date: 'BIN Issue Date',
+    division: 'Division',
+    circle: 'Circle',
+    bin: 'BIN',
+    entity_name: 'Name',
+    address: 'Factory / Business Operation Address',
+    police_station: 'Police Station',
+    mobile: 'Mobile Number',
+    email: 'Email',
+    hq_address: 'Registered HQ Address',
+    forced_registration: 'Forced Registration',
+    major_area: 'Major Area of Economic Activity',
+    manufacturing_area: 'Areas of Manufacturing',
+    service_area: 'Areas of Service',
+    bin_status: 'BIN Status',
+    e_tin: 'e-TIN',
   }
 };
 
@@ -382,39 +382,18 @@ export const parse: Handler = async (c: any) => {
     let dbMappings = await db.query.columnMappings.findMany({
       where: (mappings: any, { or, eq }: any) => or(eq(mappings.module, 'bin_analyser'), eq(mappings.module, 'bin'))
     });
-    
-    // Merge with defaults so any missing column mapping still gets detected
-    const defaultEntries = Object.entries(DEFAULT_MODULE_MAPPINGS['bin_analyser']).map(([dbColumn, excelHeader]) => ({
-      id: 0,
-      module: 'bin_analyser',
-      dbColumn,
-      excelHeader: excelHeader as string,
-      createdAt: new Date(),
-    }));
 
     if (dbMappings.length === 0) {
-      dbMappings = defaultEntries;
-    } else {
-      // If dbMappings is missing some columns or has narrow definitions, augment them
-      defaultEntries.forEach(def => {
-        const existing = dbMappings.find((m: any) => m.dbColumn === def.dbColumn);
-        if (!existing) {
-          dbMappings.push(def);
-        } else if (existing.excelHeader) {
-          // Merge defaults as fallback synonyms
-          const existingHeaders = existing.excelHeader.split(',').map((s: string) => s.trim().toLowerCase());
-          const defHeaders = def.excelHeader.split(',').map((s: string) => s.trim());
-          const newToAdd = defHeaders.filter(dh => !existingHeaders.includes(dh.toLowerCase()));
-          if (newToAdd.length > 0) {
-            existing.excelHeader = `${existing.excelHeader}, ${newToAdd.join(', ')}`;
-          }
-        }
-      });
+      dbMappings = Object.entries(DEFAULT_MODULE_MAPPINGS['bin_analyser']).map(([dbColumn, excelHeader]) => ({
+        id: 0,
+        module: 'bin_analyser',
+        dbColumn,
+        excelHeader: excelHeader as string,
+        createdAt: new Date(),
+      }));
     }
 
-    const mappingValues = dbMappings.flatMap((m: any) =>
-      (m.excelHeader || '').split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean)
-    );
+    const mappingValues = dbMappings.map((m: any) => (m.excelHeader || '').trim().toLowerCase()).filter(Boolean);
 
     let headerRowIndex = 0;
     let maxMatches = 0;

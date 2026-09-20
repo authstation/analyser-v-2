@@ -570,26 +570,16 @@ export const parse: Handler = async (c: any) => {
     }));
 
     if (dbMappings.length === 0) {
-      dbMappings = defaultEntries;
-    } else {
-      defaultEntries.forEach(def => {
-        const existing = dbMappings.find((m: any) => m.dbColumn === def.dbColumn);
-        if (!existing) {
-          dbMappings.push(def);
-        } else if (existing.excelHeader) {
-          const existingHeaders = existing.excelHeader.split(',').map((s: string) => s.trim().toLowerCase());
-          const defHeaders = def.excelHeader.split(',').map((s: string) => s.trim());
-          const newToAdd = defHeaders.filter(dh => !existingHeaders.includes(dh.toLowerCase()));
-          if (newToAdd.length > 0) {
-            existing.excelHeader = `${existing.excelHeader}, ${newToAdd.join(', ')}`;
-          }
-        }
-      });
+      dbMappings = Object.entries(DEFAULT_RETURN_DATA_MAPPINGS).map(([dbColumn, excelHeader]) => ({
+        id: 0,
+        module: 'return_data',
+        dbColumn,
+        excelHeader,
+        createdAt: new Date(),
+      }));
     }
 
-    const mappingValues = dbMappings.flatMap((m: any) =>
-      (m.excelHeader || '').split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean)
-    );
+    const mappingValues = dbMappings.map((m: any) => (m.excelHeader || '').trim().toLowerCase()).filter(Boolean);
 
     let headerRowIndex = 0;
     let maxMatches = 0;
