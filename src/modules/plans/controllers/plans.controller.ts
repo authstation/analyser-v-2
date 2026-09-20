@@ -227,6 +227,23 @@ export const upgrade: Handler = async (c: any) => {
       .where(eq(users.id, auth.id))
       .returning();
 
+    // Notify admins about the upgrade request
+    try {
+      const admins = await db.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+      if (admins.length > 0) {
+        const notifs = admins.map((a) => ({
+          userId: a.id,
+          type: "admin_plan_upgrade",
+          title: "New Plan Upgrade Request 🔔",
+          body: `User has requested to upgrade to '${targetPlan.name}' with TrxID: ${trxId}.`,
+          link: "/admin/users",
+        }));
+        await db.insert(notifications).values(notifs);
+      }
+    } catch (notifErr) {
+      console.warn("Could not insert admin upgrade notification:", notifErr);
+    }
+
     return c.json({
       message: `Upgrade request to '${targetPlan.name}' submitted successfully (TrxID: ${trxId}). It will be activated once payment is verified.`,
       data: updatedUser,
