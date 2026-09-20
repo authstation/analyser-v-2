@@ -249,9 +249,10 @@ const handleFileUpload = async (event: Event) => {
       }
     }, 800);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('File Upload Error:', error);
-    alert('Failed to upload or parse the file.');
+    const errorMsg = error.response?.data?.error || error.message || 'Failed to upload or parse the file.';
+    alert(errorMsg);
   } finally {
     setTimeout(() => {
       loading.value = false;

@@ -315,8 +315,9 @@ const handleFileUpload = async (event: Event) => {
       parsedData.value = response.data.data;
       modalInstance?.show();
     }, 800);
-  } catch (error) {
-    alert('Failed to upload or parse the file. Ensure it is a valid format.');
+  } catch (error: any) {
+    const errorMsg = error.response?.data?.error || error.message || 'Failed to upload or parse the file. Ensure it is a valid format.';
+    alert(errorMsg);
   } finally {
     setTimeout(() => {
       loading.value = false;

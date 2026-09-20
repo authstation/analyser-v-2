@@ -351,9 +351,11 @@ export const parse: Handler = async (c: any) => {
       return c.json({ error: 'Only Excel files (.xlsx, .xls) are allowed.' }, 400);
     }
 
-    const cfg = await getSettings(['common_max_file_size_mb', 'common_max_file_rows', 'bin_format_regex', 'bin_format_description']);
-    const maxSizeMb = parseFloat(setting(cfg, 'common_max_file_size_mb') || '50');
-    const maxRows = parseInt(setting(cfg, 'common_max_file_rows') || '100000', 10);
+    const cfg = await getSettings(['common_max_file_size_mb', 'common_max_file_rows', 'max_file_size_mb', 'max_file_rows']);
+    const rawSize = cfg['common_max_file_size_mb'] || cfg['max_file_size_mb'];
+    const maxSizeMb = rawSize ? parseFloat(rawSize) : 50;
+    const rawRows = cfg['common_max_file_rows'] || cfg['max_file_rows'];
+    const maxRows = rawRows ? parseInt(rawRows, 10) : 100000;
 
     if (file.size > maxSizeMb * 1024 * 1024) {
       return c.json({ error: `File size exceeds the maximum allowed ${maxSizeMb}MB.` }, 400);
@@ -534,7 +536,7 @@ export const parse: Handler = async (c: any) => {
     return c.json({ message: 'File processed successfully.', data: processedData });
   } catch (error: any) {
     console.error('Parse Error:', error);
-    return c.json({ error: 'Failed to process file.' }, 500);
+    return c.json({ error: error?.message || 'Failed to process file.' }, 500);
   }
 };
 
