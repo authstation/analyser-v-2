@@ -313,6 +313,47 @@ async function ensurePostgresTables(sql: any) {
       "created_at" timestamp DEFAULT now() NOT NULL
     );
 
+    ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "is_addon" boolean DEFAULT false NOT NULL;
+    ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "addon_price" integer DEFAULT 300 NOT NULL;
+    ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "trx_id" text;
+    ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "payment_method" text;
+    ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "updated_at" timestamp DEFAULT now() NOT NULL;
+
+    ALTER TABLE "bin_data" ADD COLUMN IF NOT EXISTS "hq_address" text;
+    ALTER TABLE "bin_data" ADD COLUMN IF NOT EXISTS "e_tin" text;
+    ALTER TABLE "bin_data" ADD COLUMN IF NOT EXISTS "raw_json" text;
+    ALTER TABLE "bin_data" ADD COLUMN IF NOT EXISTS "uploaded_by" integer REFERENCES "users"("id");
+    ALTER TABLE "bin_data" ADD COLUMN IF NOT EXISTS "circle_id" integer REFERENCES "circles"("id");
+    ALTER TABLE "bin_data" ADD COLUMN IF NOT EXISTS "division_id" integer REFERENCES "divisions"("id");
+    ALTER TABLE "bin_data" ADD COLUMN IF NOT EXISTS "police_station_id" integer REFERENCES "police_stations"("id");
+
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "division_id" integer REFERENCES "divisions"("id");
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "circle_id" integer REFERENCES "circles"("id");
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "submission_id" text;
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "tax_period" timestamp;
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "has_activities" text;
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "total_sales_value" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "total_payable_vat" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "total_payable_sd" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "total_input_tax_credit_value" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "total_input_tax_credit_vat" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "increasing_adjustment" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "decreasing_adjustment" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "net_payable_vat" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "net_payable_sd" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "fine_penalty" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "deposited_vat" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "deposited_sd" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "closing_balance_vat" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "closing_balance_sd" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "vds_increasing" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "vds_decreasing" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "advanced_tax_paid" numeric(20, 2);
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "submission_date" text;
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "last_amendment_date" text;
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "raw_json" text;
+    ALTER TABLE "return_data" ADD COLUMN IF NOT EXISTS "uploaded_by" integer REFERENCES "users"("id");
+
     ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "type" varchar(100) DEFAULT 'info';
     ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "title" varchar(255) DEFAULT '';
     ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "body" text;

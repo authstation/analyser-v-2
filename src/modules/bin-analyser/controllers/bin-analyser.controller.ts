@@ -741,7 +741,9 @@ export const save: Handler = async (c: any) => {
         areasOfManufacturing: sql`EXCLUDED.manufacturing_area`,
         areasOfService: sql`EXCLUDED.service_area`,
         email: sql`EXCLUDED.email`, mobile: sql`EXCLUDED.mobile`,
-        address: sql`EXCLUDED.address`, divisionId: sql`EXCLUDED.division_id`,
+        address: sql`EXCLUDED.address`,
+        hqAddress: sql`EXCLUDED.hq_address`,
+        divisionId: sql`EXCLUDED.division_id`,
         circleId: sql`EXCLUDED.circle_id`, policeStationId: sql`EXCLUDED.police_station_id`,
         eTin: sql`EXCLUDED.e_tin`, rawJson: sql`EXCLUDED.raw_json`
       }
@@ -750,7 +752,7 @@ export const save: Handler = async (c: any) => {
     return c.json({ message: 'Data saved to database successfully!', insertedRows: validToInsert.length });
   } catch (error: any) {
     console.error('Save Error:', error);
-    return c.json({ error: 'Failed to save data.' }, 500);
+    return c.json({ error: error.message || 'Failed to save data.' }, 500);
   }
 };
 
