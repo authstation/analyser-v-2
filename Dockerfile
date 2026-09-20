@@ -24,7 +24,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/drizzle.config.ts ./
+COPY --from=builder /app/tsconfig.json ./
 
 EXPOSE 3010
 
-CMD ["node", "src/framework/maker-cli/index.mjs", "serve"]
+CMD ["sh", "-c", "if [ \"$AUTO_MIGRATE\" != \"false\" ]; then node src/framework/maker-cli/index.mjs db:migrate --seed; fi && node src/framework/maker-cli/index.mjs serve"]
+
