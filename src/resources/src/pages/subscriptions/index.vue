@@ -322,38 +322,36 @@
 
       <!-- Payment Instructions -->
       <div class="card bg-surface border border-custom p-3 mb-3">
-        <div class="fw-bold small text-warning mb-2"><i class="bi bi-wallet2 me-1"></i> Payment Instructions:</div>
-        <div class="small text-muted mb-1">
-          Send <strong>৳300</strong> via <strong>bKash / Nagad / Rocket</strong> (Send Money / Payment) to:
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted small">Add-on Price:</span>
+          <span class="fw-medium text-light small">৳300</span>
         </div>
-        <div class="d-flex align-items-center gap-2 font-monospace fw-bold text-light bg-black bg-opacity-25 p-2 rounded border border-custom mb-1">
-          <span>01700-000000</span>
-          <span class="badge bg-primary text-xs ms-auto">Personal / Merchant</span>
+        <div class="d-flex justify-content-between mb-2 pb-1 border-bottom border-custom">
+          <span class="text-muted small">bKash Charge (1.8%):</span>
+          <span class="fw-medium text-light small">৳6</span>
         </div>
-        <div class="text-xs text-muted">Please enter your transaction ID (TrxID) below after sending payment.</div>
+        <div class="d-flex justify-content-between fw-bold small mb-2">
+          <span>Total Payable:</span>
+          <span class="text-warning">৳306</span>
+        </div>
+
+        <div class="p-2 rounded border border-custom text-center mb-1 bg-black bg-opacity-25">
+          <p class="mb-0 text-xs text-muted">Send money via bKash to:</p>
+          <h5 class="fw-bold text-success mb-0 tracking-wider font-monospace">01719950891</h5>
+        </div>
+        <div class="text-xs text-muted text-center mt-1">After sending the money, enter the Transaction ID (TrxID) below.</div>
       </div>
 
-      <!-- Form Inputs -->
-      <div class="row g-2 mb-3">
-        <div class="col-sm-5">
-          <label class="form-label text-muted small fw-semibold">Payment Method</label>
-          <select v-model="addonPaymentMethod" class="form-select form-select-sm bg-surface border-custom">
-            <option value="bKash">bKash</option>
-            <option value="Nagad">Nagad</option>
-            <option value="Rocket">Rocket</option>
-            <option value="Bank">Bank Transfer</option>
-          </select>
-        </div>
-        <div class="col-sm-7">
-          <label class="form-label text-muted small fw-semibold">Transaction ID (TrxID) *</label>
-          <input 
-            type="text" 
-            v-model="addonTrxId" 
-            class="form-control form-control-sm bg-surface border-custom" 
-            placeholder="e.g. 9J4K8L2M" 
-            required 
-          />
-        </div>
+      <!-- TrxID Input -->
+      <div class="mb-3">
+        <label class="form-label text-muted small fw-bold">bKash Transaction ID (TrxID) *</label>
+        <input 
+          type="text" 
+          v-model="addonTrxId" 
+          class="form-control form-control-sm text-warning border-warning" 
+          placeholder="e.g. 9J4K8R2X" 
+          required 
+        />
       </div>
 
       <div class="d-flex justify-content-between align-items-center pt-2 border-top border-custom">
