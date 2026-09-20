@@ -14,9 +14,9 @@ import { HttpStatusCodes } from "@/framework/facade.js";
  * @param fn     The handler to wrap
  */
 export function tryCatch(label: string, fn: Handler): Handler {
-  return async (c) => {
+  return async (c, next) => {
     try {
-      return await fn(c);
+      return await fn(c, next);
     } catch (error) {
       console.error(`[${label}]`, error);
       const message = error instanceof Error ? error.message : "Unexpected error";

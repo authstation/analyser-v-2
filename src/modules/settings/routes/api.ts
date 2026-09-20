@@ -10,7 +10,7 @@ import { getPenalties, createPenalty, updatePenalty, deletePenalty } from "@/mod
 import { getMappings, updateMappings } from "@/modules/settings/controllers/mappings.js";
 import { getPoliceStations } from "@/modules/settings/controllers/police-stations.js";
 import { getItemMappings, createItemMapping, updateItemMapping, deleteItemMapping } from "@/modules/settings/controllers/item-mappings.js";
-import { getOffices, createOffice } from "@/modules/settings/controllers/offices.js";
+import { getOffices, createOffice, updateOffice, deleteOffice } from "@/modules/settings/controllers/offices.js";
 
 const router = createRouter();
 
@@ -54,5 +54,7 @@ router.delete("/item-mappings/:id", authMiddleware, requireRole('admin'), delete
 // Offices
 router.get("/ibas/offices", authMiddleware, requireRole('admin'), getOffices);
 router.post("/ibas/offices", authMiddleware, requireRole('admin'), createOffice);
+router.put("/ibas/offices/:id", authMiddleware, requireRole('admin'), updateOffice);
+router.delete("/ibas/offices/:id", authMiddleware, requireRole('admin'), deleteOffice);
 
 export default router;

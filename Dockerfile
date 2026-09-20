@@ -41,9 +41,9 @@ COPY tsconfig.json ./
 
 EXPOSE 3010
 
-# Health check — Coolify zero-downtime deploy এর জন্য
+# Health check — Coolify zero-downtime deploy এর জন্য (Bun-এর বিল্ট-ইন fetch ব্যবহার করা হয়েছে, কোনো wget/curl দরকার নেই)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD wget -qO- http://localhost:3010/health || exit 1
+  CMD bun -e "fetch('http://localhost:' + (process.env.APP_PORT || 3010) + '/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
 # Bun TypeScript সরাসরি চালায় — কোনো dist/ দরকার নেই!
 CMD ["bun", "src/framework/server.ts"]

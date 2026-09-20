@@ -5,6 +5,7 @@ import { cookie, db, dispatchEvent, HttpStatusCodes, jwt, password, urls } from 
 
 import { emailVerificationTokens, passwordResetTokens, refreshTokens, users } from "@/modules/auth/database/models/user.js";
 import { plans } from "@/modules/plans/database/models/plans.js";
+import { subscriptions } from "@/modules/settings/database/models/settings.js";
 import {
   hashEmailVerificationToken,
   hashResetToken,
@@ -32,14 +33,32 @@ export const register: Handler = async (c: any) => {
       return c.json({ message: "Email already exists" }, HttpStatusCodes.UNPROCESSABLE_ENTITY);
     }
 
+    const planId = body.planId ? Number(body.planId) : null;
+    const trxId = body.trxId ? String(body.trxId).trim() : null;
+    const paymentStatus = planId ? "pending" : "none";
+
     const [user] = await db.insert(users).values({
       name: body.name,
       email: body.email,
       password: await password.hashPassword(body.password),
-      role: "user"
+      role: "user",
+      planId,
+      trxId,
+      paymentStatus,
     }).returning();
 
     if (!user) throw new Error("Failed to insert user");
+
+    // Record subscription requests for selected circles
+    if (Array.isArray(body.circleIds) && body.circleIds.length > 0) {
+      const circleInserts = body.circleIds.map((cId: number) => ({
+        userId: user.id,
+        circleId: Number(cId),
+        status: "pending",
+        isAddon: false,
+      }));
+      await db.insert(subscriptions).values(circleInserts);
+    }
 
     if (authConfig.requireEmailVerification) {
       const plainToken = makeEmailVerificationToken();

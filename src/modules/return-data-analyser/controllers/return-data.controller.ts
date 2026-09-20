@@ -1,4 +1,4 @@
-﻿import * as xlsx from "xlsx";
+import * as xlsx from "xlsx";
 import type { Handler } from "hono";
 import { db } from "@/framework/facade.js";
 import { and, eq, inArray, sql, isNotNull, desc } from "drizzle-orm";
@@ -530,9 +530,9 @@ export const parse: Handler = async (c: any) => {
       return c.json({ error: 'Only Excel files (.xlsx, .xls) are allowed.' }, 400);
     }
 
-    const cfg = await getSettings(['max_file_size_mb', 'max_file_rows']);
-    const maxSizeMb = parseFloat(cfg['max_file_size_mb'] || '50');
-    const maxRows = parseInt(cfg['max_file_rows'] || '100000');
+    const cfg = await getSettings(['common_max_file_size_mb', 'common_max_file_rows', 'max_file_size_mb', 'max_file_rows']);
+    const maxSizeMb = parseFloat(cfg['common_max_file_size_mb'] || cfg['max_file_size_mb'] || '50');
+    const maxRows = parseInt(cfg['common_max_file_rows'] || cfg['max_file_rows'] || '100000', 10);
 
     if (file.size > maxSizeMb * 1024 * 1024) {
       return c.json({ error: `File size exceeds the maximum allowed ${maxSizeMb}MB.` }, 400);
