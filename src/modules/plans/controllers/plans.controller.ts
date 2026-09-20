@@ -3,6 +3,7 @@ import { eq, desc, count } from "drizzle-orm";
 import { db, HttpStatusCodes } from "@/framework/facade.js";
 import { plans } from "@/modules/plans/database/models/plans.js";
 import { users } from "@/modules/auth/database/models/user.js";
+import { notifications } from "@/modules/auth/database/models/notifications.js";
 
 /**
  * Why: Returns list of plans.
@@ -98,6 +99,23 @@ export const update: Handler = async (c: any) => {
     if (body.isActive !== undefined) updatePayload.isActive = !!body.isActive;
 
     const [updated] = await db.update(plans).set(updatePayload).where(eq(plans.id, id)).returning();
+
+    // Auto notify users about plan update
+    try {
+      const allUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "user"));
+      if (allUsers.length > 0) {
+        const notifs = allUsers.map((u) => ({
+          userId: u.id,
+          type: "plan_updated",
+          title: `Plan Updated: ${updated.name}`,
+          body: `The '${updated.name}' subscription plan has been updated with new pricing/features. Click to view.`,
+          link: "/plans",
+        }));
+        await db.insert(notifications).values(notifs);
+      }
+    } catch (notifErr) {
+      console.error("Failed to insert plan update notifications:", notifErr);
+    }
 
     return c.json({ message: "Plan updated successfully", data: updated });
   } catch (error: any) {

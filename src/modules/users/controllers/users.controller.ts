@@ -2,6 +2,7 @@ import { eq, desc } from "drizzle-orm";
 import { db, HttpStatusCodes } from "@/framework/facade.js";
 import { users } from "@/modules/auth/database/models/user.js";
 import { plans } from "@/modules/plans/database/models/plans.js";
+import { notifications } from "@/modules/auth/database/models/notifications.js";
 import { tryCatch } from "@/framework/http/handler.js";
 
 /**
@@ -48,10 +49,35 @@ export const update = tryCatch("Update user", async (c: any) => {
   const updatePayload: any = {};
 
   if (body.paymentStatus !== undefined) {
-    updatePayload.paymentStatus = String(body.paymentStatus);
-    if (body.paymentStatus === "approved") {
+    const status = String(body.paymentStatus);
+    updatePayload.paymentStatus = status;
+    if (status === "approved") {
       updatePayload.planStartDate = new Date();
       updatePayload.hasChangedCircle = false;
+      
+      try {
+        await db.insert(notifications).values({
+          userId: id,
+          type: "account_approved",
+          title: "Account & Subscription Approved 🎉",
+          body: "Your subscription payment has been verified! You now have full access to Analyser.",
+          link: "/dashboard"
+        });
+      } catch (notifErr) {
+        console.error("Failed to insert approval notification:", notifErr);
+      }
+    } else if (status === "rejected") {
+      try {
+        await db.insert(notifications).values({
+          userId: id,
+          type: "payment_rejected",
+          title: "Payment Verification Failed",
+          body: "Your subscription payment could not be verified. Please check with support or provide a valid bKash TrxID.",
+          link: "/my-subscriptions"
+        });
+      } catch (notifErr) {
+        console.error("Failed to insert rejection notification:", notifErr);
+      }
     }
   }
   if (body.role !== undefined) {

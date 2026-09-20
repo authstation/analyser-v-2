@@ -4,6 +4,7 @@ import { db, HttpStatusCodes } from "@/framework/facade.js";
 import { users } from "@/modules/auth/database/models/user.js";
 import { plans } from "@/modules/plans/database/models/plans.js";
 import { circles, subscriptions } from "@/modules/settings/database/models/settings.js";
+import { notifications } from "@/modules/auth/database/models/notifications.js";
 
 /**
  * Why: Returns all office access subscriptions across all users for admin approval/revocation.
@@ -33,7 +34,7 @@ export const getAllSubscriptions: Handler = async (c: any) => {
       .innerJoin(circles, eq(subscriptions.circleId, circles.id))
       .orderBy(desc(subscriptions.createdAt));
 
-    return c.json({ message: "Subscriptions fetched successfully", data: list });
+    return c.json({ message: "Subscriptions list fetched successfully", data: list });
   } catch (error) {
     console.error("Fetch all subscriptions error:", error);
     return c.json({ error: "Failed to fetch subscriptions" }, HttpStatusCodes.INTERNAL_SERVER_ERROR);
@@ -41,8 +42,8 @@ export const getAllSubscriptions: Handler = async (c: any) => {
 };
 
 /**
- * Why: Updates status of a subscription request (approved/rejected).
- * When: Admin clicks Approve/Reject/Revoke in Office Access Approvals.
+ * Why: Allows admin to approve or reject a user's circle subscription or single add-on.
+ * When: Admin clicks Approve/Reject on Manage Subscriptions page.
  * Where: POST /api/subscriptions/admin/status route.
  */
 export const updateSubscriptionStatus: Handler = async (c: any) => {
@@ -58,11 +59,46 @@ export const updateSubscriptionStatus: Handler = async (c: any) => {
       return c.json({ error: "Invalid subscription id or status" }, HttpStatusCodes.BAD_REQUEST);
     }
 
+    const [sub] = await db
+      .select({
+        id: subscriptions.id,
+        userId: subscriptions.userId,
+        circleId: subscriptions.circleId,
+        circleName: circles.name,
+      })
+      .from(subscriptions)
+      .innerJoin(circles, eq(subscriptions.circleId, circles.id))
+      .where(eq(subscriptions.id, id));
+
     const [updated] = await db
       .update(subscriptions)
       .set({ status, updatedAt: new Date() })
       .where(eq(subscriptions.id, id))
       .returning();
+
+    if (sub) {
+      try {
+        if (status === "approved") {
+          await db.insert(notifications).values({
+            userId: sub.userId,
+            type: "office_approved",
+            title: "Office Access Approved ✅",
+            body: `Your access request for office '${sub.circleName}' has been approved and is now active!`,
+            link: "/my-subscriptions"
+          });
+        } else if (status === "rejected") {
+          await db.insert(notifications).values({
+            userId: sub.userId,
+            type: "office_rejected",
+            title: "Office Access Rejected",
+            body: `Your access request for office '${sub.circleName}' was rejected.`,
+            link: "/my-subscriptions"
+          });
+        }
+      } catch (notifErr) {
+        console.error("Failed to insert office status notification:", notifErr);
+      }
+    }
 
     return c.json({ message: `Subscription status updated to ${status}`, data: updated });
   } catch (error) {

@@ -10,6 +10,7 @@ import { initRedis } from "@/framework/redis/client.js";
 import { storage } from "@/framework/storage/storage.js";
 
 import { bootstrapAdminUser } from "@/modules/auth/bootstrap/admin.js";
+import { bootstrapVersionAnnouncement } from "@/modules/notifications/bootstrap/announcement.js";
 
 /**
  * Why: Assembles app kernel and boots all framework dependencies.
@@ -27,6 +28,7 @@ export async function createKernel() {
   await initDatabase();
   await runModelMigrationHooks();
   await bootstrapAdminUser();
+  await bootstrapVersionAnnouncement();
   await bootQueueJobs();
   await registerModuleRoutes(app);
 
