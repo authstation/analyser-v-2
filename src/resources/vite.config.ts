@@ -11,7 +11,7 @@ const apiUrl = process.env.APP_URL || `http://localhost:${process.env.APP_PORT |
 const socketEnabled = process.env.SOCKET !== "false";
 
 const proxy: Record<string, any> = {
-  "/api": { target: apiUrl, changeOrigin: true },
+  "/api": { target: apiUrl, changeOrigin: true, timeout: 180000, proxyTimeout: 180000 },
   "/health": { target: apiUrl, changeOrigin: true },
   "/storage": { target: apiUrl, changeOrigin: true }
 };
