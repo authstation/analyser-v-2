@@ -57,8 +57,8 @@ export const useAuthStore = defineStore("auth", () => {
     else clearUser();
   };
 
-  const bootstrap = async () => {
-    if (initialized.value) return;
+  const bootstrap = async (forceRefresh = false) => {
+    if (initialized.value && !forceRefresh) return;
 
     for (let attempt = 1; attempt <= MAX_BOOTSTRAP_ATTEMPTS; attempt++) {
       try {
@@ -144,7 +144,7 @@ export const useAuthStore = defineStore("auth", () => {
     } finally {
       syncUser(null);
       processing.value = false;
-      initialized.value = true;
+      initialized.value = false; // Reset so bootstrap() re-fetches after next login
     }
   };
 

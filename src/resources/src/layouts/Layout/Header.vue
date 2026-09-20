@@ -208,11 +208,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h, inject, onMounted, onUnmounted } from "vue";
+import { ref, computed, h, inject, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import AppLogo from "@/components/AppLogo.vue";
 import { authUser } from "@/composables/useAuth";
 import axios from "@/plugins/axios";
+import { formatTimeAgo } from "@/utils/format";
 
 interface ButtonEntry {
   id: symbol;
@@ -288,20 +289,13 @@ const handleMarkAllAsRead = async () => {
   try {
     await axios.post("/api/notifications/read-all");
     unreadCount.value = 0;
-    notificationsList.value.forEach((n) => (n.isRead = true));
+    // Use map() to create a new array — ensures Vue 3 reactivity detects the change
+    notificationsList.value = notificationsList.value.map((n) => ({ ...n, isRead: true }));
   } catch (err) {
     console.error("Mark all as read error:", err);
   }
 };
 
-const formatTimeAgo = (dateStr: string) => {
-  if (!dateStr) return "Just now";
-  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (diff < 60) return "Just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-};
 
 const iconBoxClass = (colorClass: string) => ({
   warning: "bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25",
@@ -331,23 +325,48 @@ const handleClickOutside = (e: MouseEvent) => {
 const currentTime = ref(Date.now());
 let timerInterval: any = null;
 
+function startNotifPolling() {
+  if (notifInterval) clearInterval(notifInterval);
+  fetchNotifications();
+  notifInterval = setInterval(() => {
+    fetchNotifications();
+  }, 45000);
+}
+
+function stopNotifPolling() {
+  if (notifInterval) {
+    clearInterval(notifInterval);
+    notifInterval = null;
+  }
+}
+
 onMounted(() => {
   document.addEventListener("click", handleClickOutside);
   timerInterval = setInterval(() => {
     currentTime.value = Date.now();
   }, 30000);
 
-  // Initial fetch and 45s periodic polling for notifications
-  fetchNotifications();
-  notifInterval = setInterval(() => {
-    fetchNotifications();
-  }, 45000);
+  // Start polling only if already authenticated
+  if (authUser.value) {
+    startNotifPolling();
+  }
+});
+
+// Watch authUser — restart polling on login, stop on logout
+watch(authUser, (newUser) => {
+  if (newUser) {
+    startNotifPolling();
+  } else {
+    stopNotifPolling();
+    notificationsList.value = [];
+    unreadCount.value = 0;
+  }
 });
 
 onUnmounted(() => {
   document.removeEventListener("click", handleClickOutside);
   if (timerInterval) clearInterval(timerInterval);
-  if (notifInterval) clearInterval(notifInterval);
+  stopNotifPolling();
 });
 
 const handleLogoutClick = async () => {

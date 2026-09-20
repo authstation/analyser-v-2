@@ -2,46 +2,16 @@
   <div class="min-vh-100 d-flex flex-column position-relative">
     
     <!-- Full-screen Loading Overlay -->
-    <div 
-      v-if="loading" 
-      class="position-fixed top-0 start-0 w-100 h-100 d-flex flex-column justify-content-center align-items-center" 
-      style="background: rgba(0, 0, 0, 0.85); z-index: 9999; backdrop-filter: blur(4px);"
-    >
-      <div class="spinner-border text-info mb-3" style="width: 4rem; height: 4rem;" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
-      <h3 class="fw-bold  mb-2">
-        Processing File... {{ processingProgress }}%
-      </h3>
-      <div class="progress w-50 mt-3" style="height: 10px; background-color: #333;">
-        <div class="progress-bar bg-info progress-bar-striped progress-bar-animated" :style="{ width: processingProgress + '%' }"></div>
-      </div>
-      <p class="text-muted text-center mt-3 w-50">
-        Please wait while we parse your Excel file. <br>
-        For large files (thousands of rows), this may take a few moments. Do not close or refresh this page.
-      </p>
-    </div>
+    <ProgressOverlay v-if="loading" label="Processing File..." :progress="processingProgress" color="info">
+      Please wait while we parse your Excel file.<br>
+      For large files (thousands of rows), this may take a few moments. Do not close or refresh this page.
+    </ProgressOverlay>
 
     <!-- Full-screen Saving Overlay -->
-    <div 
-      v-if="isSaving" 
-      class="position-fixed top-0 start-0 w-100 h-100 d-flex flex-column justify-content-center align-items-center" 
-      style="background: rgba(0, 0, 0, 0.85); z-index: 9999; backdrop-filter: blur(4px);"
-    >
-      <div class="spinner-border text-primary mb-3" style="width: 4rem; height: 4rem;" role="status">
-        <span class="visually-hidden">Saving...</span>
-      </div>
-      <h3 class="fw-bold  mb-2">
-        Saving to Database... {{ saveProgress }}%
-      </h3>
-      <div class="progress w-50 mt-3" style="height: 10px; background-color: #333;">
-        <div class="progress-bar bg-primary progress-bar-striped progress-bar-animated" :style="{ width: saveProgress + '%' }"></div>
-      </div>
-      <p class="text-muted text-center mt-3 w-50">
-        Please wait while we save your data. <br>
-        Do not close or refresh this page.
-      </p>
-    </div>
+    <ProgressOverlay v-if="isSaving" label="Saving to Database..." :progress="saveProgress" color="primary">
+      Please wait while we save your data.<br>
+      Do not close or refresh this page.
+    </ProgressOverlay>
 
     <!-- Main Content -->
     <main class="flex-grow-1 p-4">
@@ -214,16 +184,11 @@ import axios from '@/plugins/axios';
 import { useAuthStore } from '@/stores/auth';
 import { Modal } from 'bootstrap';
 import Pagebar from '@/components/Pagebar.vue';
+import { formatDateDisplay } from '@/utils/format';
+import ProgressOverlay from '@/components/ProgressOverlay.vue';
 
 const authStore = useAuthStore();
 
-const formatDateDisplay = (val: any) => {
-  if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
-    const parts = val.split('-');
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return val;
-};
 
 // --- File Upload State ---
 const fileInput = ref<HTMLInputElement | null>(null);

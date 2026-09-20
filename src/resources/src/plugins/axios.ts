@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const envApiUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
+const envApiUrl = import.meta.env.VITE_API_URL;
 if (envApiUrl && (envApiUrl.startsWith("http://") || envApiUrl.startsWith("https://"))) {
   axios.defaults.baseURL = envApiUrl.replace(/\/api\/?$/, "");
 }

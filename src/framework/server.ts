@@ -114,10 +114,10 @@ if (redisConfig.enabled && realtime) {
  * Why: Parses optional dev sidecar views requested by dev command.
  * When: Server starts and prints local tooling URLs.
  * Where: Runtime startup output logic.
- * How: Reads `NEXGEN_DEV_VIEWS` comma-separated env and returns a set.
+ * How: Reads `ANALYSER_DEV_VIEWS` comma-separated env and returns a set.
  */
 function devViews() {
-  return new Set(parseCsvOrFallback(process.env.NEXGEN_DEV_VIEWS, []).map((view) => view.toLowerCase()));
+  return new Set(parseCsvOrFallback(process.env.ANALYSER_DEV_VIEWS, []).map((view) => view.toLowerCase()));
 }
 
 const views = devViews();
@@ -164,8 +164,8 @@ if (views.has("redis")) {
 }
 
 if (appConfig.uiEnabled) {
-  if (process.env.NEXGEN_FRONTEND_URL) {
-    console.log(`UI: ${process.env.NEXGEN_FRONTEND_URL}`);
+  if (process.env.ANALYSER_FRONTEND_URL) {
+    console.log(`UI: ${process.env.ANALYSER_FRONTEND_URL}`);
   } else {
     console.log("UI enabled");
   }

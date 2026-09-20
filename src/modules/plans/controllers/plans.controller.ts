@@ -1,7 +1,8 @@
 import type { Handler } from "hono";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, count } from "drizzle-orm";
 import { db, HttpStatusCodes } from "@/framework/facade.js";
 import { plans } from "@/modules/plans/database/models/plans.js";
+import { users } from "@/modules/auth/database/models/user.js";
 
 /**
  * Why: Returns list of plans.
@@ -142,6 +143,19 @@ export const destroy: Handler = async (c: any) => {
     const id = Number(c.req.param("id"));
     if (isNaN(id)) {
       return c.json({ error: "Invalid plan ID" }, HttpStatusCodes.BAD_REQUEST);
+    }
+
+    // Prevent deleting a plan that still has active users
+    const [{ value: userCount }] = await db
+      .select({ value: count() })
+      .from(users)
+      .where(eq(users.planId, id));
+
+    if (userCount > 0) {
+      return c.json(
+        { error: `Cannot delete plan — ${userCount} user(s) are currently on this plan. Freeze it instead.` },
+        HttpStatusCodes.BAD_REQUEST
+      );
     }
 
     await db.delete(plans).where(eq(plans.id, id));

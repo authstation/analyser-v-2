@@ -14,9 +14,6 @@ import { notifications } from "@/modules/auth/database/models/notifications.js";
 export const index: Handler = async (c: any) => {
   try {
     const auth = c.get("auth");
-    if (!auth || !auth.id) {
-      return c.json({ message: "Unauthorized" }, HttpStatusCodes.UNAUTHORIZED);
-    }
 
     const [currentUser] = await db
       .select({
@@ -267,9 +264,6 @@ export const index: Handler = async (c: any) => {
 export const markAllAsRead: Handler = async (c: any) => {
   try {
     const auth = c.get("auth");
-    if (!auth || !auth.id) {
-      return c.json({ message: "Unauthorized" }, HttpStatusCodes.UNAUTHORIZED);
-    }
 
     await db
       .update(notifications)

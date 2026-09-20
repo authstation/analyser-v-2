@@ -2,7 +2,6 @@ import { pgTable, serial, text, timestamp, integer, numeric, index, unique } fro
 import { relations } from 'drizzle-orm';
 import { divisions, circles } from '@/modules/settings/database/models/settings.js';
 import { users } from '@/modules/auth/database/models/user.js';
-import { binData } from '@/modules/bin-analyser/database/models/bin-analyser.js';
 
 export const returnData = pgTable('return_data', {
   id: serial('id').primaryKey(),

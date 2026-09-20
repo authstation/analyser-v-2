@@ -36,6 +36,20 @@
       "when": 1789770000000,
       "tag": "0004_create_plans_table",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789780000000,
+      "tag": "0005_subscriptions_addon_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1758472983000,
+      "tag": "0006_users_updated_at_email_verified",
+      "breakpoints": true
     }
   ]
 }

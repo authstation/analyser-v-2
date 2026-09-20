@@ -1,25 +1,9 @@
 import type { Handler } from "hono";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { db, HttpStatusCodes } from "@/framework/facade.js";
 import { users } from "@/modules/auth/database/models/user.js";
 import { plans } from "@/modules/plans/database/models/plans.js";
 import { circles, subscriptions } from "@/modules/settings/database/models/settings.js";
-
-let columnsEnsured = false;
-async function ensureAddonColumns() {
-  if (columnsEnsured) return;
-  try {
-    await db.execute(sql`
-      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trx_id text;
-      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS payment_method text;
-      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS is_addon boolean DEFAULT false NOT NULL;
-      ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS addon_price integer DEFAULT 300 NOT NULL;
-    `);
-    columnsEnsured = true;
-  } catch (err) {
-    console.warn("Could not alter subscriptions columns automatically:", err);
-  }
-}
 
 /**
  * Why: Returns all office access subscriptions across all users for admin approval/revocation.
@@ -28,7 +12,6 @@ async function ensureAddonColumns() {
  */
 export const getAllSubscriptions: Handler = async (c: any) => {
   try {
-    await ensureAddonColumns();
     const list = await db
       .select({
         id: subscriptions.id,
@@ -64,7 +47,6 @@ export const getAllSubscriptions: Handler = async (c: any) => {
  */
 export const updateSubscriptionStatus: Handler = async (c: any) => {
   try {
-    await ensureAddonColumns();
     const body = await c.req.json();
     const id = Number(body.id ?? body.subscriptionId);
     let status = String(body.status || "").toLowerCase().trim();
@@ -96,11 +78,7 @@ export const updateSubscriptionStatus: Handler = async (c: any) => {
  */
 export const getMySubscriptions: Handler = async (c: any) => {
   try {
-    await ensureAddonColumns();
     const auth = c.get("auth");
-    if (!auth || !auth.id) {
-      return c.json({ message: "Unauthorized" }, HttpStatusCodes.UNAUTHORIZED);
-    }
 
     const [user] = await db
       .select({
@@ -166,11 +144,7 @@ export const getMySubscriptions: Handler = async (c: any) => {
  */
 export const requestSubscription: Handler = async (c: any) => {
   try {
-    await ensureAddonColumns();
     const auth = c.get("auth");
-    if (!auth || !auth.id) {
-      return c.json({ message: "Unauthorized" }, HttpStatusCodes.UNAUTHORIZED);
-    }
 
     const [user] = await db
       .select({
@@ -295,11 +269,7 @@ export const requestSubscription: Handler = async (c: any) => {
  */
 export const buySingleCircle: Handler = async (c: any) => {
   try {
-    await ensureAddonColumns();
     const auth = c.get("auth");
-    if (!auth || !auth.id) {
-      return c.json({ message: "Unauthorized" }, HttpStatusCodes.UNAUTHORIZED);
-    }
 
     const body = await c.req.json();
     const circleId = Number(body.circleId);
@@ -378,11 +348,7 @@ export const buySingleCircle: Handler = async (c: any) => {
  */
 export const changeCircleSubscription: Handler = async (c: any) => {
   try {
-    await ensureAddonColumns();
     const auth = c.get("auth");
-    if (!auth || !auth.id) {
-      return c.json({ message: "Unauthorized" }, HttpStatusCodes.UNAUTHORIZED);
-    }
 
     const user = await db.query.users.findFirst({
       where: eq(users.id, auth.id),

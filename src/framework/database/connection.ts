@@ -129,7 +129,9 @@ async function ensurePostgresTables(sql: any) {
       "trx_id" text,
       "payment_status" text DEFAULT 'none',
       "has_changed_circle" boolean DEFAULT false NOT NULL,
-      "created_at" timestamp DEFAULT now() NOT NULL
+      "email_verified_at" timestamp,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      "updated_at" timestamp DEFAULT now() NOT NULL
     );
 
     ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "role" "role" DEFAULT 'user' NOT NULL;
@@ -138,6 +140,8 @@ async function ensurePostgresTables(sql: any) {
     ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "trx_id" text;
     ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "payment_status" text DEFAULT 'none';
     ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "has_changed_circle" boolean DEFAULT false NOT NULL;
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email_verified_at" timestamp;
+    ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updated_at" timestamp DEFAULT now() NOT NULL;
 
     CREATE TABLE IF NOT EXISTS "divisions" (
       "id" serial PRIMARY KEY,
@@ -299,24 +303,15 @@ async function ensurePostgresTables(sql: any) {
 
     CREATE TABLE IF NOT EXISTS "notifications" (
       "id" serial PRIMARY KEY,
-      "user_id" integer REFERENCES "users"("id") ON DELETE cascade,
-      "title" text NOT NULL,
-      "message" text NOT NULL,
-      "is_read" boolean DEFAULT false NOT NULL,
+      "user_id" integer REFERENCES "users"("id") ON UPDATE cascade ON DELETE cascade,
+      "type" varchar(100) NOT NULL,
+      "title" varchar(255) NOT NULL,
+      "body" text,
+      "data" text,
+      "link" varchar(500),
+      "read_at" timestamp,
       "created_at" timestamp DEFAULT now() NOT NULL
     );
-
-    CREATE TABLE IF NOT EXISTS "roles" (
-      "id" integer PRIMARY KEY,
-      "name" varchar(255) NOT NULL UNIQUE,
-      "created_at" timestamp DEFAULT now() NOT NULL,
-      "updated_at" timestamp DEFAULT now() NOT NULL
-    );
-
-    -- Insert default plans if none exist
-    INSERT INTO "plans" ("name", "price", "duration_days", "max_circles", "is_active")
-    SELECT 'Free Trial', 0, 30, 1, true
-    WHERE NOT EXISTS (SELECT 1 FROM "plans");
   `);
 }
 

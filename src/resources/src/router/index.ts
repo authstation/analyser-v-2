@@ -224,8 +224,7 @@ export const routes = [
     ]
   },
   {
-    path: "/login",
-    name: "authlayout",
+    path: "/:authLayout(login|register|forget-password|reset-password|verify-email)",
     component: () => import("@/layouts/AuthLayout.vue"),
     children: [
       {
@@ -271,28 +270,37 @@ const router = createRouter({
   }
 });
 
-// setupRouteProgress(router);
+setupRouteProgress(router);
 
 import axios from "@/plugins/axios";
 
 let cachedSettings: Record<string, boolean> | null = null;
 let lastFetchTime = 0;
+let fetchInFlight: Promise<void> | null = null;
 
 async function getModuleStatus(moduleKey: string): Promise<boolean> {
   const now = Date.now();
-  if (!cachedSettings || now - lastFetchTime > 3000) {
-    try {
-      const res = await axios.get('/api/settings/app-settings');
-      const list = res.data?.data || [];
-      const map: Record<string, boolean> = {};
-      for (const item of list) {
-        map[item.key] = item.value === 'true';
-      }
-      cachedSettings = map;
-      lastFetchTime = now;
-    } catch {
-      // fallback
+  if (!cachedSettings || now - lastFetchTime > 30000) {
+    // If a fetch is already in-flight, wait for it instead of making a duplicate request
+    if (!fetchInFlight) {
+      fetchInFlight = (async () => {
+        try {
+          const res = await axios.get('/api/settings/app-settings');
+          const list = res.data?.data || [];
+          const map: Record<string, boolean> = {};
+          for (const item of list) {
+            map[item.key] = item.value === 'true';
+          }
+          cachedSettings = map;
+          lastFetchTime = Date.now();
+        } catch {
+          // fallback: keep existing cache or return true
+        } finally {
+          fetchInFlight = null;
+        }
+      })();
     }
+    await fetchInFlight;
   }
   if (cachedSettings && moduleKey in cachedSettings) {
     return cachedSettings[moduleKey];
@@ -314,7 +322,8 @@ router.beforeEach(async (to) => {
 
     // Inactive or rejected user check: immediately kick to login
     if (userRole !== "admin" && (auth.user?.paymentStatus === "inactive" || auth.user?.paymentStatus === "rejected")) {
-      await auth.logout();
+      // Logout in background (don't await — avoids re-triggering the guard mid-logout)
+      auth.logout().catch(() => {});
       return { path: "/login" };
     }
 

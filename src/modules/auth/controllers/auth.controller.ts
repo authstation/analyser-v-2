@@ -32,23 +32,14 @@ export const register: Handler = async (c: any) => {
       return c.json({ message: "Email already exists" }, HttpStatusCodes.UNPROCESSABLE_ENTITY);
     }
 
-    const insertResult = await db.insert(users).values({
+    const [user] = await db.insert(users).values({
       name: body.name,
       email: body.email,
       password: await password.hashPassword(body.password),
       role: "user"
-    });
+    }).returning();
 
-    const insertedId = Number((insertResult as any)[0]?.insertId ?? (insertResult as any).insertId);
-    if (!insertedId) {
-      throw new Error("Failed to resolve inserted user id");
-    }
-
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, insertedId)
-    });
-
-    if (!user) throw new Error("Inserted user not found");
+    if (!user) throw new Error("Failed to insert user");
 
     if (authConfig.requireEmailVerification) {
       const plainToken = makeEmailVerificationToken();
@@ -75,8 +66,7 @@ export const register: Handler = async (c: any) => {
       {
         userId: user.id,
         email: user.email,
-        name: user.name,
-        password: body.password
+        name: user.name
       },
       { queue: "mail" }
     );
@@ -190,6 +180,10 @@ export const me: Handler = async (c: any) => {
       .where(eq(users.id, auth.id));
 
     if (!user) return c.json({ message: "User not found" }, HttpStatusCodes.NOT_FOUND);
+
+    if (user.role !== "admin" && (user.paymentStatus === "inactive" || user.paymentStatus === "rejected")) {
+      return c.json({ message: "Your account is inactive. Please contact administration." }, HttpStatusCodes.FORBIDDEN);
+    }
 
     return c.json(
       {
@@ -428,8 +422,6 @@ export const refreshToken: Handler = async (c: any) => {
 export const logoutAllDevices: Handler = async (c: any) => {
   try {
     const auth = c.get("auth");
-
-    if (!auth) return c.json({ message: "Unauthorized" }, HttpStatusCodes.UNAUTHORIZED);
 
     await db.delete(refreshTokens).where(eq(refreshTokens.userId, auth.id));
     cookie.deleteAuth(c);

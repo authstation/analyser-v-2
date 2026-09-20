@@ -1,5 +1,6 @@
 import { appConfig } from "@/config/index.js";
 import { initDatabase } from "@/framework/database/connection.js";
+import { runModelMigrationHooks } from "@/framework/database/migrate-hooks.js";
 import { createHttpApp } from "@/framework/http/app.js";
 import { ensurePublicDir, uiIndexMiddleware, uiStaticMiddleware, hasUiBuild } from "@/framework/http/static.js";
 import { registerModuleRoutes } from "@/framework/modules/routes.js";
@@ -24,6 +25,7 @@ export async function createKernel() {
   const app = createHttpApp();
 
   await initDatabase();
+  await runModelMigrationHooks();
   await bootstrapAdminUser();
   await bootQueueJobs();
   await registerModuleRoutes(app);

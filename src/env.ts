@@ -6,7 +6,7 @@ expand(config({ override: true }));
 
 const envSchema = z
   .object({
-    APP_NAME: z.string().default("nexgen"),
+    APP_NAME: z.string().default("Analyser"),
     APP_ENV: z.enum(["development", "production", "test"]).default("development"),
     APP_PORT: z.coerce.number().default(3010),
     APP_URL: z.string().trim().default("http://localhost:3010"),
@@ -18,7 +18,7 @@ const envSchema = z
       .string()
       .optional()
       .transform((value) => value?.trim() || undefined),
-    DATABASE_URL: z.string().default("sqlite:./src/storage/database/nexgen.sqlite"),
+    DATABASE_URL: z.string().default("sqlite:./src/storage/database/analyser.sqlite"),
     REDIS: z
       .string()
       .default("false")
@@ -26,11 +26,11 @@ const envSchema = z
     REDIS_URL: z.string().default("redis://127.0.0.1:6379"),
     REDIS_PREFIX: z
       .string()
-      .default("nexgen")
+      .default("analyser")
       .transform((value) => value.trim()),
-    JWT_ACCESS_SECRET: z.string().default("authstation-access-secret-key-2026-secure"),
-    JWT_REFRESH_SECRET: z.string().default("authstation-refresh-secret-key-2026-secure"),
-    COOKIE_SECRET: z.string().default("authstation-cookie-secret-key-2026-secure"),
+    JWT_ACCESS_SECRET: z.string().default("analyser-v2-access-secret-key-2026-secure"),
+    JWT_REFRESH_SECRET: z.string().default("analyser-v2-refresh-secret-key-2026-secure"),
+    COOKIE_SECRET: z.string().default("analyser-v2-cookie-secret-key-2026-secure"),
     STORAGE_ACCESS_KEY_ID: z
       .string()
       .optional()
