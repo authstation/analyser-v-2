@@ -246,7 +246,7 @@ const fetchYearComparisonData = async () => {
   try {
     const token = localStorage.getItem('token');
     const queryParams = new URLSearchParams();
-    ['circleId', 'policeStationId', 'fromDate', 'toDate', 'metric', 'forcedRegistration'].forEach(key => {
+    ['circleId', 'policeStationId', 'fromDate', 'toDate', 'metric', 'forcedRegistration', 'majorArea', 'mfgArea', 'serviceArea'].forEach(key => {
       if (route.query[key]) {
         queryParams.append(key, String(route.query[key]));
       }

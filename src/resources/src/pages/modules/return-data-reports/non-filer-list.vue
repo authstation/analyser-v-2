@@ -2,7 +2,53 @@
   <div class="h-100 d-flex flex-column text-light">
     <!-- Filter Section (No Card Wrapper) -->
     <div class="mb-4 d-print-none" style="position: relative; z-index: 1050;">
-      <div class="row g-2">
+      <div class="row g-2 align-items-end">
+        <!-- 1. BIN Issue From Date -->
+        <div class="col-12 col-md-3">
+          <label class="form-label small text-muted mb-1 d-block">Issue From Date</label>
+          <input
+            type="date"
+            class="form-control bg-dark text-light border-secondary shadow-none"
+            style="height: 38px; color-scheme: dark; background-color: #2b3035 !important; border-color: #495057;"
+            v-model="fromIssueDate"
+          />
+        </div>
+
+        <!-- 2. BIN Issue To Date -->
+        <div class="col-12 col-md-3">
+          <label class="form-label small text-muted mb-1 d-block">Issue To Date</label>
+          <input
+            type="date"
+            class="form-control bg-dark text-light border-secondary shadow-none"
+            style="height: 38px; color-scheme: dark; background-color: #2b3035 !important; border-color: #495057;"
+            v-model="toIssueDate"
+            :min="fromIssueDate || undefined"
+          />
+        </div>
+
+        <!-- 3. From Tax Period -->
+        <div class="col-12 col-md-3">
+          <label class="form-label small text-muted mb-1 d-block">From Tax Period</label>
+          <input
+            type="month"
+            class="form-control bg-dark text-light border-secondary shadow-none"
+            style="height: 38px; color-scheme: dark; background-color: #2b3035 !important; border-color: #495057;"
+            v-model="fromTaxPeriod"
+          />
+        </div>
+
+        <!-- 4. To Tax Period -->
+        <div class="col-12 col-md-3">
+          <label class="form-label small text-muted mb-1 d-block">To Tax Period</label>
+          <input
+            type="month"
+            class="form-control bg-dark text-light border-secondary shadow-none"
+            style="height: 38px; color-scheme: dark; background-color: #2b3035 !important; border-color: #495057;"
+            v-model="toTaxPeriod"
+            :min="fromTaxPeriod || undefined"
+          />
+        </div>
+
         <div class="col-12 col-md-3">
           <MultiSelectDropdown
             v-model="selectedCircle"
@@ -122,7 +168,13 @@
       <p class="mt-2 text-muted">Calculating and loading non-filer records...</p>
     </div>
 
-    <!-- Data Table Card -->
+    <!-- Empty / Idle State: Placeholder before user clicks View button -->
+    <div v-else-if="!hasLoaded" class="text-center p-5 border border-secondary rounded flex-grow-1 d-flex flex-column justify-content-center align-items-center" style="border-style: dashed !important; background-color: rgba(33, 37, 41, 0.4); min-height: 260px;">
+      <i class="bi bi-inbox text-muted" style="font-size: 3rem; opacity: 0.5;"></i>
+      <p class="text-muted mt-3 mb-0">Select your desired filters and click the View button (<i class="bi bi-eye text-primary"></i>) to generate the Non-Filer List.</p>
+    </div>
+
+    <!-- Data Table Card (Only rendered after clicking View button) -->
     <div v-else class="card bg-dark border-secondary shadow-sm flex-grow-1 overflow-hidden d-flex flex-column">
       <div class="card-header border-secondary d-flex justify-content-between align-items-center py-3 flex-wrap gap-2 d-print-none">
         <div class="d-flex align-items-center">
@@ -147,9 +199,9 @@
               <th style="width: 50px;" class="text-center">#</th>
               <th>Entity Details</th>
               <th class="text-center" style="width: 130px;">Mobile</th>
-              <th class="text-center">Due Months</th>
+              <th class="text-center">Eligible</th>
               <th class="text-center">Submitted</th>
-              <th class="text-center text-warning fw-bold">Unfiled Months</th>
+              <th class="text-center text-warning fw-bold">Non-Filed</th>
               <th>Economic Activity</th>
               <th style="width: 100px;" class="text-center">Actions</th>
             </tr>
@@ -219,21 +271,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import axios from '@/plugins/axios';
-import MultiSelectDropdown from '@/components/common/MultiSelectDropdown.vue';
-import SearchInput from '@/components/common/SearchInput.vue';
+import { ref, computed, onMounted, watch } from "vue";
+import { useRouter } from "vue-router";
+import axios from "@/plugins/axios";
+import MultiSelectDropdown from "@/components/common/MultiSelectDropdown.vue";
+import SearchInput from "@/components/common/SearchInput.vue";
 
 const router = useRouter();
 
 const loading = ref(false);
+const hasLoaded = ref(false);
 const listData = ref<any[]>([]);
-const searchQuery = ref('');
+const searchQuery = ref("");
 const currentPage = ref(1);
 const pageSize = ref(10);
 
 // Filter selections
+const fromIssueDate = ref("");
+const toIssueDate = ref("");
+const fromTaxPeriod = ref("");
+const toTaxPeriod = ref("");
 const selectedCircle = ref<string[]>([]);
 const selectedPoliceStation = ref<string[]>([]);
 const selectedStatus = ref<string[]>([]);
@@ -245,8 +302,8 @@ const selectedServiceArea = ref<string[]>([]);
 // Filter options
 const uniqueCircles = ref<string[]>([]);
 const uniquePoliceStations = ref<string[]>([]);
-const uniqueStatuses = ref<string[]>(['Active', 'Inactive', 'Suspended', 'Cancelled']);
-const regTypeOptions = ref<string[]>(['Regular', 'Forced']);
+const uniqueStatuses = ref<string[]>(["Active", "Inactive", "Suspended", "Cancelled"]);
+const regTypeOptions = ref<string[]>(["Regular", "Forced"]);
 const uniqueMajorAreas = ref<string[]>([]);
 const uniqueMfgAreasBase = ref<string[]>([]);
 const uniqueServiceAreasBase = ref<string[]>([]);
@@ -278,18 +335,61 @@ const uniqueServiceAreas = computed(() => {
   return Array.from(validService).sort();
 });
 
-watch(selectedMajorArea, () => {
-  const validMfg = new Set(uniqueMfgAreas.value);
-  selectedMfgArea.value = selectedMfgArea.value.filter(m => validMfg.has(m));
+watch(
+  selectedMajorArea,
+  () => {
+    const validMfg = new Set(uniqueMfgAreas.value);
+    selectedMfgArea.value = selectedMfgArea.value.filter((m) => validMfg.has(m));
 
-  const validService = new Set(uniqueServiceAreas.value);
-  selectedServiceArea.value = selectedServiceArea.value.filter(s => validService.has(s));
-}, { deep: true });
+    const validService = new Set(uniqueServiceAreas.value);
+    selectedServiceArea.value = selectedServiceArea.value.filter((s) => validService.has(s));
+  },
+  { deep: true }
+);
+
+// 1. From Issue Date watcher: if fromIssueDate > toIssueDate, reset toIssueDate
+watch(fromIssueDate, (newVal) => {
+  if (newVal && toIssueDate.value && toIssueDate.value < newVal) {
+    toIssueDate.value = "";
+  }
+});
+
+// 2. From Tax Period watcher: if fromTaxPeriod > toTaxPeriod, reset toTaxPeriod
+watch(fromTaxPeriod, (newVal) => {
+  if (newVal && toTaxPeriod.value && toTaxPeriod.value < newVal) {
+    toTaxPeriod.value = "";
+  }
+});
+
+// 3. Whenever any filter condition changes, hide the list so the user must click the View button
+watch(
+  [
+    fromIssueDate,
+    toIssueDate,
+    fromTaxPeriod,
+    toTaxPeriod,
+    selectedCircle,
+    selectedPoliceStation,
+    selectedStatus,
+    selectedForced,
+    selectedMajorArea,
+    selectedMfgArea,
+    selectedServiceArea
+  ],
+  () => {
+    hasLoaded.value = false;
+    listData.value = [];
+  },
+  { deep: true }
+);
 
 const filteredList = computed(() => {
   let result = listData.value;
   if (searchQuery.value.trim()) {
-    const clean = (str: any) => String(str || '').replace(/[-_ ]/g, '').toLowerCase();
+    const clean = (str: any) =>
+      String(str || "")
+        .replace(/[-_ ]/g, "")
+        .toLowerCase();
     const q = clean(searchQuery.value);
     result = result.filter((row: any) => {
       return (
@@ -322,8 +422,8 @@ const pageNumbers = computed(() => {
   for (let i = Math.max(2, current - delta); i <= Math.min(total - 1, current + delta); i++) {
     range.push(i);
   }
-  if (current - delta > 2) range.unshift('...');
-  if (current + delta < total - 1) range.push('...');
+  if (current - delta > 2) range.unshift("...");
+  if (current + delta < total - 1) range.push("...");
   range.unshift(1);
   if (total > 1) range.push(total);
   return range;
@@ -337,11 +437,11 @@ const changePage = (p: number) => {
 
 const fetchFilterOptions = async () => {
   try {
-    const res = await axios.get('/api/return-data-analyser/filter-options');
+    const res = await axios.get("/api/return-data-analyser/filter-options");
     if (res.data) {
       const data = res.data.data || res.data;
-      uniqueCircles.value = (data.circles || []).map((c: any) => typeof c === 'string' ? c : c.name).filter(Boolean);
-      uniquePoliceStations.value = (data.policeStations || []).map((p: any) => typeof p === 'string' ? p : p.name).filter(Boolean);
+      uniqueCircles.value = (data.circles || []).map((c: any) => (typeof c === "string" ? c : c.name)).filter(Boolean);
+      uniquePoliceStations.value = (data.policeStations || []).map((p: any) => (typeof p === "string" ? p : p.name)).filter(Boolean);
       if (data.statuses && data.statuses.length > 0) {
         uniqueStatuses.value = data.statuses;
       }
@@ -351,7 +451,7 @@ const fetchFilterOptions = async () => {
       areaRelations.value = data.areaRelations || [];
     }
   } catch (error) {
-    console.error('Failed to load filter options', error);
+    console.error("Failed to load filter options", error);
   }
 };
 
@@ -360,25 +460,35 @@ const fetchNonFilerList = async () => {
   currentPage.value = 1;
   try {
     const params = new URLSearchParams();
-    if (selectedCircle.value.length > 0) params.append('circle', selectedCircle.value.join(','));
-    if (selectedPoliceStation.value.length > 0) params.append('ps', selectedPoliceStation.value.join(','));
-    if (selectedStatus.value.length > 0) params.append('status', selectedStatus.value.join(','));
-    if (selectedForced.value.length > 0) params.append('reg', selectedForced.value.join(','));
-    if (selectedMajorArea.value.length > 0) params.append('major', selectedMajorArea.value.join(','));
-    if (selectedMfgArea.value.length > 0) params.append('mfg', selectedMfgArea.value.join(','));
-    if (selectedServiceArea.value.length > 0) params.append('service', selectedServiceArea.value.join(','));
+    if (fromIssueDate.value) params.append("fromIssueDate", fromIssueDate.value);
+    if (toIssueDate.value) params.append("toIssueDate", toIssueDate.value);
+    if (fromTaxPeriod.value) params.append("fromTaxPeriod", fromTaxPeriod.value);
+    if (toTaxPeriod.value) params.append("toTaxPeriod", toTaxPeriod.value);
+    if (selectedCircle.value.length > 0) params.append("circle", selectedCircle.value.join(","));
+    if (selectedPoliceStation.value.length > 0) params.append("ps", selectedPoliceStation.value.join(","));
+    if (selectedStatus.value.length > 0) params.append("status", selectedStatus.value.join(","));
+    if (selectedForced.value.length > 0) params.append("reg", selectedForced.value.join(","));
+    if (selectedMajorArea.value.length > 0) params.append("major", selectedMajorArea.value.join(","));
+    if (selectedMfgArea.value.length > 0) params.append("mfg", selectedMfgArea.value.join(","));
+    if (selectedServiceArea.value.length > 0) params.append("service", selectedServiceArea.value.join(","));
 
     const res = await axios.get(`/api/return-data-analyser/non-filer-list?${params.toString()}`);
     listData.value = res.data?.data || res.data || [];
+    hasLoaded.value = true;
   } catch (error) {
-    console.error('Failed to load non filer list', error);
+    console.error("Failed to load non filer list", error);
     listData.value = [];
+    hasLoaded.value = true;
   } finally {
     loading.value = false;
   }
 };
 
 const resetFilters = () => {
+  fromIssueDate.value = "";
+  toIssueDate.value = "";
+  fromTaxPeriod.value = "";
+  toTaxPeriod.value = "";
   selectedCircle.value = [];
   selectedPoliceStation.value = [];
   selectedStatus.value = [];
@@ -386,23 +496,23 @@ const resetFilters = () => {
   selectedMajorArea.value = [];
   selectedMfgArea.value = [];
   selectedServiceArea.value = [];
-  searchQuery.value = '';
+  searchQuery.value = "";
   fetchNonFilerList();
 };
 
 const viewPenaltyReport = (bin: string) => {
   router.push({
-    name: 'return-search-by-bin',
-    query: { bin, fromList: 'true' }
+    name: "return-search-by-bin",
+    query: { bin, fromList: "true" }
   });
 };
 
 const formatDate = (dateStr: string | null) => {
-  if (!dateStr) return '';
+  if (!dateStr) return "";
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '';
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
+  if (isNaN(d.getTime())) return "";
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
   const year = d.getFullYear();
   return `${day}.${month}.${year}`;
 };
@@ -411,32 +521,43 @@ const downloadExcel = () => {
   const data = filteredList.value;
   if (data.length === 0) return;
 
-  const headers = ['SL', 'BIN', 'Entity Name', 'Circle', 'Police Station', 'Status', 'BIN Issue Date', 'Total Due Months', 'Submitted Returns', 'Unfiled Months'];
-  
+  const headers = [
+    "SL",
+    "BIN",
+    "Entity Name",
+    "Circle",
+    "Police Station",
+    "Status",
+    "BIN Issue Date",
+    "Eligible",
+    "Submitted Returns",
+    "Non-Filed"
+  ];
+
   const csvContent = [
-    headers.join(','),
+    headers.join(","),
     ...data.map((row, idx) => {
-      const bin = `"=""${row.bin || ''}"""`;
-      const name = `"${(row.name || '').replace(/"/g, '""')}"`;
-      const circle = `"${(row.circleName || '').replace(/"/g, '""')}"`;
-      const ps = `"${(row.policeStationName || '').replace(/"/g, '""')}"`;
-      const status = `"${(row.binStatus || '').replace(/"/g, '""')}"`;
+      const bin = `"=""${row.bin || ""}"""`;
+      const name = `"${(row.name || "").replace(/"/g, '""')}"`;
+      const circle = `"${(row.circleName || "").replace(/"/g, '""')}"`;
+      const ps = `"${(row.policeStationName || "").replace(/"/g, '""')}"`;
+      const status = `"${(row.binStatus || "").replace(/"/g, '""')}"`;
       const issueDate = `"${formatDate(row.issueDate)}"`;
       const due = row.totalDueMonths || 0;
       const submitted = row.submittedCount || 0;
       const unfiled = row.grandTotalMonths || 0;
       return `${idx + 1},${bin},${name},${circle},${ps},${status},${issueDate},${due},${submitted},${unfiled}`;
     })
-  ].join('\n');
+  ].join("\n");
 
-  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
   const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
+  const link = document.createElement("a");
   link.href = url;
-  
-  const dateStr = new Date().toISOString().split('T')[0];
-  link.setAttribute('download', `Non_Filer_List_${dateStr}.csv`);
-  
+
+  const dateStr = new Date().toISOString().split("T")[0];
+  link.setAttribute("download", `Non_Filer_List_${dateStr}.csv`);
+
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -444,7 +565,6 @@ const downloadExcel = () => {
 
 onMounted(async () => {
   await fetchFilterOptions();
-  await fetchNonFilerList();
 });
 </script>
 

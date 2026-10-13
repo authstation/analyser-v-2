@@ -77,7 +77,7 @@
     </div>
 
     <!-- Report Content -->
-    <div v-else class="reports-container flex-grow-1 overflow-auto pe-2">
+    <div v-else class="reports-container flex-grow-1 overflow-auto">
       <div class="card bg-dark text-light border-secondary mb-5 printable-card">
         <div class="card-body p-4 p-print-0">
           
@@ -149,8 +149,8 @@
                     {{ row.ruleAmount }}/- ({{ row.rulePeriodStr }})
                   </td>
                   <td class="text-center">{{ row.totalMonths }}</td>
-                  <td class="text-center">{{ row.firstMonth }}</td>
-                  <td class="text-center">{{ row.totalMonths === 1 ? '' : row.lastMonth }}</td>
+                  <td class="text-center">{{ row.firstMonth || '-' }}</td>
+                  <td class="text-center">{{ row.totalMonths === 1 ? '-' : (row.lastMonth || '-') }}</td>
                   <td class="text-end pe-2">{{ row.totalAmount ? row.totalAmount.toLocaleString() : '0' }}</td>
                 </tr>
                 <!-- Footer / Grand Total -->
@@ -239,9 +239,11 @@ const fetchReport = async (binOverride?: string) => {
 
   loading.value = true;
   try {
-    const res = await axios.get('/api/return-data-analyser/non-filer-list?q=' + encodeURIComponent(targetBin));
+    const res = await axios.get('/api/return-data-analyser/non-filer-list?q=' + encodeURIComponent(targetBin.trim()));
     if (res.data.data && res.data.data.length > 0) {
-      selectedReport.value = res.data.data[0];
+      // Find exact BIN match if multiple returned
+      const exact = res.data.data.find((item: any) => item.bin === targetBin.trim());
+      selectedReport.value = exact || res.data.data[0];
     } else {
       alert('No non-filer record found for this BIN');
       selectedReport.value = null;
@@ -256,16 +258,45 @@ const fetchReport = async (binOverride?: string) => {
 
 const penaltyBreakdown = computed(() => {
   if (!selectedReport.value) return [];
-  if (selectedReport.value.penaltyBreakdown) return selectedReport.value.penaltyBreakdown;
+  if (selectedReport.value.penaltyBreakdown && selectedReport.value.penaltyBreakdown.length > 0) {
+    return selectedReport.value.penaltyBreakdown;
+  }
   const unfiled = selectedReport.value.grandTotalMonths || selectedReport.value.nonFiledMonths || 0;
-  const rate = 10000;
+  
+  let fMonth = selectedReport.value.firstMonth || '-';
+  let lMonth = selectedReport.value.lastMonth || fMonth;
+  let rate = 10000;
+  let rulePeriodStr = '01.07.2019 to 31.03.2024';
+
+  if (selectedReport.value.issueDate) {
+    const d = new Date(selectedReport.value.issueDate);
+    if (!isNaN(d.getTime())) {
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+      if (fMonth === '-') {
+        fMonth = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+        lMonth = fMonth;
+      }
+      const ym = d.getFullYear() * 100 + (d.getMonth() + 1);
+      if (ym >= 202507) {
+        rate = 2000;
+        rulePeriodStr = '01.07.2025 to Present';
+      } else if (ym >= 202404) {
+        rate = 5000;
+        rulePeriodStr = '01.04.2024 to 30.06.2025';
+      }
+    }
+  }
+
   return [
     {
       ruleAmount: rate,
-      rulePeriodStr: 'Per Non-Filed Tax Period',
+      rulePeriodStr,
       totalMonths: unfiled,
-      firstMonth: '-',
-      lastMonth: '-',
+      firstMonth: fMonth,
+      lastMonth: unfiled === 1 ? '-' : lMonth,
       totalAmount: unfiled * rate
     }
   ];

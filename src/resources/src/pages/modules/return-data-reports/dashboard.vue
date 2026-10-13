@@ -337,6 +337,14 @@
               </div>
             </div>
             <div class="col">
+              <div class="card bg-dark border-primary h-100 shadow-sm">
+                <div class="card-body text-center p-3">
+                  <h6 class="text-primary fw-bold mb-2" style="font-size: 0.8rem;">📈 Expected Returns</h6>
+                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.newBins.expected?.toLocaleString() || analyticsData.newBins.expected || 0 }}</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
               <div class="card bg-dark border-success h-100 shadow-sm">
                 <div class="card-body text-center p-3">
                   <h6 class="text-success fw-bold mb-2" style="font-size: 0.8rem;">✅ Return Filed</h6>
