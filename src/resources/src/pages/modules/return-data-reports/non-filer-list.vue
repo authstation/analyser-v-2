@@ -315,8 +315,14 @@ const uniqueMfgAreas = computed(() => {
   }
   const validMfg = new Set<string>();
   for (const rel of areaRelations.value) {
-    if (rel.major && selectedMajorArea.value.includes(rel.major) && rel.mfg) {
-      validMfg.add(rel.mfg);
+    if (!rel.major || !rel.mfg) continue;
+    const majors = rel.major.split(";").map((s) => s.trim());
+    if (majors.some((m) => selectedMajorArea.value.includes(m))) {
+      rel.mfg
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((m) => validMfg.add(m));
     }
   }
   return Array.from(validMfg).sort();
@@ -328,8 +334,14 @@ const uniqueServiceAreas = computed(() => {
   }
   const validService = new Set<string>();
   for (const rel of areaRelations.value) {
-    if (rel.major && selectedMajorArea.value.includes(rel.major) && rel.service) {
-      validService.add(rel.service);
+    if (!rel.major || !rel.service) continue;
+    const majors = rel.major.split(";").map((s) => s.trim());
+    if (majors.some((m) => selectedMajorArea.value.includes(m))) {
+      rel.service
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((s) => validService.add(s));
     }
   }
   return Array.from(validService).sort();
@@ -468,9 +480,9 @@ const fetchNonFilerList = async () => {
     if (selectedPoliceStation.value.length > 0) params.append("ps", selectedPoliceStation.value.join(","));
     if (selectedStatus.value.length > 0) params.append("status", selectedStatus.value.join(","));
     if (selectedForced.value.length > 0) params.append("reg", selectedForced.value.join(","));
-    if (selectedMajorArea.value.length > 0) params.append("major", selectedMajorArea.value.join(","));
-    if (selectedMfgArea.value.length > 0) params.append("mfg", selectedMfgArea.value.join(","));
-    if (selectedServiceArea.value.length > 0) params.append("service", selectedServiceArea.value.join(","));
+    if (selectedMajorArea.value.length > 0) params.append("major", selectedMajorArea.value.join("|||"));
+    if (selectedMfgArea.value.length > 0) params.append("mfg", selectedMfgArea.value.join("|||"));
+    if (selectedServiceArea.value.length > 0) params.append("service", selectedServiceArea.value.join("|||"));
 
     const res = await axios.get(`/api/return-data-analyser/non-filer-list?${params.toString()}`);
     listData.value = res.data?.data || res.data || [];

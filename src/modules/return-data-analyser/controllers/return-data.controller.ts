@@ -1,7 +1,7 @@
 import * as xlsx from "xlsx";
 import type { Handler } from "hono";
 import { db } from "@/framework/facade.js";
-import { and, eq, inArray, sql, isNotNull, desc } from "drizzle-orm";
+import { and, eq, inArray, sql, isNotNull, desc, or } from "drizzle-orm";
 import { columnMappings, binData } from "@/modules/bin-analyser/database/models/bin-analyser.js";
 import { returnData } from "@/modules/return-data-analyser/database/models/return-data.js";
 import { circles, policeStations, subscriptions, divisions, appSettings, penaltyRules } from "@/modules/settings/database/models/settings.js";
@@ -61,6 +61,31 @@ function parseTaxPeriod(val: string): Date | null {
     }
   }
   return null;
+}
+
+function parseAreaParam(param: string | null | undefined): string[] {
+  if (!param || param === "All") return [];
+  if (param.includes("|||")) {
+    return param.split("|||").map((s) => s.trim()).filter(Boolean);
+  }
+  if (param.includes(";")) {
+    return param.split(";").map((s) => s.trim()).filter(Boolean);
+  }
+  let str = param;
+  const placeholders: { [k: string]: string } = {};
+  if (str.includes("Trading, including e-Commerce")) {
+    str = str.replace(/Trading,\s*including e-Commerce/g, "___TRADING_ECOMMERCE___");
+    placeholders["___TRADING_ECOMMERCE___"] = "Trading, including e-Commerce";
+  }
+  if (str.includes("Leather, Leather Products & Footwear")) {
+    str = str.replace(/Leather,\s*Leather Products & Footwear/g, "___LEATHER_FOOTWEAR___");
+    placeholders["___LEATHER_FOOTWEAR___"] = "Leather, Leather Products & Footwear";
+  }
+  return str
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => placeholders[s] || s);
 }
 
 const DEFAULT_RETURN_DATA_MAPPINGS: Record<string, string> = {
@@ -175,6 +200,85 @@ export const filterOptions: Handler = async (c: any) => {
         .where(sql`${binData.majorAreaOfEconomicActivity} IS NOT NULL AND ${binData.majorAreaOfEconomicActivity} != ''`)
     ]);
 
+    const distinctMajorSet = new Set<string>();
+    for (const m of majorAreas) {
+      if (m.major) {
+        m.major
+          .split(";")
+          .map((s: string) => s.trim())
+          .filter((s: string) => Boolean(s) && s !== "None" && s !== "N/A")
+          .forEach((s: string) => distinctMajorSet.add(s));
+      }
+    }
+
+    const distinctMfgSet = new Set<string>();
+    for (const m of mfgAreas) {
+      if (m.mfg) {
+        m.mfg
+          .split(";")
+          .map((s: string) => s.trim())
+          .filter((s: string) => Boolean(s) && s !== "None" && s !== "N/A")
+          .forEach((s: string) => distinctMfgSet.add(s));
+      }
+    }
+
+    const distinctServiceSet = new Set<string>();
+    for (const s of serviceAreas) {
+      if (s.service) {
+        s.service
+          .split(";")
+          .map((str: string) => str.trim())
+          .filter((str: string) => Boolean(str) && str !== "None" && str !== "N/A")
+          .forEach((str: string) => distinctServiceSet.add(str));
+      }
+    }
+
+    const expandedAreaRelations: { major: string; mfg: string | null; service: string | null }[] = [];
+    const relKeySet = new Set<string>();
+
+    for (const r of areaRelations) {
+      const majors = (r.major || "")
+        .split(";")
+        .map((s: string) => s.trim())
+        .filter((s: string) => Boolean(s) && s !== "None" && s !== "N/A");
+      const mfgs = (r.mfg || "")
+        .split(";")
+        .map((s: string) => s.trim())
+        .filter((s: string) => Boolean(s) && s !== "None" && s !== "N/A");
+      const services = (r.service || "")
+        .split(";")
+        .map((s: string) => s.trim())
+        .filter((s: string) => Boolean(s) && s !== "None" && s !== "N/A");
+
+      for (const maj of majors) {
+        if (mfgs.length > 0) {
+          for (const m of mfgs) {
+            const key = `${maj}|mfg|${m}`;
+            if (!relKeySet.has(key)) {
+              relKeySet.add(key);
+              expandedAreaRelations.push({ major: maj, mfg: m, service: null });
+            }
+          }
+        }
+        if (services.length > 0) {
+          for (const s of services) {
+            const key = `${maj}|srv|${s}`;
+            if (!relKeySet.has(key)) {
+              relKeySet.add(key);
+              expandedAreaRelations.push({ major: maj, mfg: null, service: s });
+            }
+          }
+        }
+        if (mfgs.length === 0 && services.length === 0) {
+          const key = `${maj}|none`;
+          if (!relKeySet.has(key)) {
+            relKeySet.add(key);
+            expandedAreaRelations.push({ major: maj, mfg: null, service: null });
+          }
+        }
+      }
+    }
+
     return c.json({
       circles: circlesList
         .map((c: any) => c.circle)
@@ -192,23 +296,10 @@ export const filterOptions: Handler = async (c: any) => {
         .map((r: any) => (r.regType === "Yes" ? "Forced" : r.regType === "No" ? "Regular" : r.regType))
         .filter(Boolean)
         .sort(),
-      majorAreas: majorAreas
-        .map((m: any) => m.major)
-        .filter(Boolean)
-        .sort(),
-      mfgAreas: mfgAreas
-        .map((m: any) => m.mfg)
-        .filter(Boolean)
-        .sort(),
-      serviceAreas: serviceAreas
-        .map((s: any) => s.service)
-        .filter(Boolean)
-        .sort(),
-      areaRelations: areaRelations.map((r: any) => ({
-        major: r.major,
-        mfg: r.mfg && r.mfg !== "None" ? r.mfg : null,
-        service: r.service && r.service !== "None" ? r.service : null
-      }))
+      majorAreas: Array.from(distinctMajorSet).sort(),
+      mfgAreas: Array.from(distinctMfgSet).sort(),
+      serviceAreas: Array.from(distinctServiceSet).sort(),
+      areaRelations: expandedAreaRelations
     });
   } catch (error) {
     console.error("Filter Options Error:", error);
@@ -253,26 +344,9 @@ export const analytics: Handler = async (c: any) => {
         .map(Number)
         .filter((n: number) => !isNaN(n));
 
-    let majorAreas: string[] = [];
-    if (majorArea)
-      majorAreas = majorArea
-        .split(",")
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-
-    let mfgAreas: string[] = [];
-    if (mfgArea)
-      mfgAreas = mfgArea
-        .split(",")
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-
-    let serviceAreas: string[] = [];
-    if (serviceArea)
-      serviceAreas = serviceArea
-        .split(",")
-        .map((s: string) => s.trim())
-        .filter(Boolean);
+    const majorAreas = parseAreaParam(majorArea);
+    const mfgAreas = parseAreaParam(mfgArea);
+    const serviceAreas = parseAreaParam(serviceArea);
 
     const approvedCircleIds = await getUserApprovedCircleIds(user);
     const { allowedCircleIds, isUnauthorized } = resolveAllowedCircleIds(approvedCircleIds, cIds);
@@ -291,22 +365,16 @@ export const analytics: Handler = async (c: any) => {
       )})`;
     }
     if (majorAreas.length > 0) {
-      baseFilter = sql`${baseFilter} AND "bin_data"."major_area" IN (${sql.join(
-        majorAreas.map((a: string) => sql`${a}`),
-        sql`, `
-      )})`;
+      const orParts = majorAreas.map((a: string) => sql`"bin_data"."major_area" ILIKE ${"%" + a + "%"}`);
+      baseFilter = sql`${baseFilter} AND (${sql.join(orParts, sql` OR `)})`;
     }
     if (mfgAreas.length > 0) {
-      baseFilter = sql`${baseFilter} AND "bin_data"."manufacturing_area" IN (${sql.join(
-        mfgAreas.map((a: string) => sql`${a}`),
-        sql`, `
-      )})`;
+      const orParts = mfgAreas.map((a: string) => sql`"bin_data"."manufacturing_area" ILIKE ${"%" + a + "%"}`);
+      baseFilter = sql`${baseFilter} AND (${sql.join(orParts, sql` OR `)})`;
     }
     if (serviceAreas.length > 0) {
-      baseFilter = sql`${baseFilter} AND "bin_data"."service_area" IN (${sql.join(
-        serviceAreas.map((a: string) => sql`${a}`),
-        sql`, `
-      )})`;
+      const orParts = serviceAreas.map((a: string) => sql`"bin_data"."service_area" ILIKE ${"%" + a + "%"}`);
+      baseFilter = sql`${baseFilter} AND (${sql.join(orParts, sql` OR `)})`;
     }
 
     const dateFilter = sql`${baseFilter} AND cast("return_data"."tax_period" as date) >= cast(to_date(${fromDateStr}, 'YYYY-MM') as date) AND cast("return_data"."tax_period" as date) <= (cast(to_date(${toDateStr}, 'YYYY-MM') as date) + interval '1 month' - interval '1 day')`;
@@ -1833,24 +1901,9 @@ export const drilldownEntities: Handler = async (c: any) => {
         .split(",")
         .map(Number)
         .filter((n: number) => !isNaN(n));
-    let majorAreas: string[] = [];
-    if (majorArea)
-      majorAreas = majorArea
-        .split(",")
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-    let mfgAreas: string[] = [];
-    if (mfgArea)
-      mfgAreas = mfgArea
-        .split(",")
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-    let serviceAreas: string[] = [];
-    if (serviceArea)
-      serviceAreas = serviceArea
-        .split(",")
-        .map((s: string) => s.trim())
-        .filter(Boolean);
+    const majorAreas = parseAreaParam(majorArea);
+    const mfgAreas = parseAreaParam(mfgArea);
+    const serviceAreas = parseAreaParam(serviceArea);
 
     const approvedCircleIds = await getUserApprovedCircleIds(user);
     const { allowedCircleIds, isUnauthorized } = resolveAllowedCircleIds(approvedCircleIds, cIds);
@@ -1891,22 +1944,16 @@ export const drilldownEntities: Handler = async (c: any) => {
     // Area filters on top of base filter
     let filterClause = sql`${baseFilterClause}`;
     if (majorAreas.length > 0) {
-      filterClause = sql`${filterClause} AND "bin_data"."major_area" IN (${sql.join(
-        majorAreas.map((a: string) => sql`${a}`),
-        sql`, `
-      )})`;
+      const orParts = majorAreas.map((a: string) => sql`"bin_data"."major_area" ILIKE ${"%" + a + "%"}`);
+      filterClause = sql`${filterClause} AND (${sql.join(orParts, sql` OR `)})`;
     }
     if (mfgAreas.length > 0) {
-      filterClause = sql`${filterClause} AND "bin_data"."manufacturing_area" IN (${sql.join(
-        mfgAreas.map((a: string) => sql`${a}`),
-        sql`, `
-      )})`;
+      const orParts = mfgAreas.map((a: string) => sql`"bin_data"."manufacturing_area" ILIKE ${"%" + a + "%"}`);
+      filterClause = sql`${filterClause} AND (${sql.join(orParts, sql` OR `)})`;
     }
     if (serviceAreas.length > 0) {
-      filterClause = sql`${filterClause} AND "bin_data"."service_area" IN (${sql.join(
-        serviceAreas.map((a: string) => sql`${a}`),
-        sql`, `
-      )})`;
+      const orParts = serviceAreas.map((a: string) => sql`"bin_data"."service_area" ILIKE ${"%" + a + "%"}`);
+      filterClause = sql`${filterClause} AND (${sql.join(orParts, sql` OR `)})`;
     }
 
     // 1. Fetch filtered entities
@@ -1996,24 +2043,53 @@ export const drilldownEntities: Handler = async (c: any) => {
     const majorSet = new Set<string>();
     const mfgSet = new Set<string>();
     const serviceSet = new Set<string>();
-    const areaRelations: { major: string; mfg: string | null; service: string | null }[] = [];
+    const expandedDrilldownRelations: { major: string; mfg: string | null; service: string | null }[] = [];
+    const drilldownRelKeySet = new Set<string>();
 
     for (const r of areaRows) {
-      if (r.major && r.major.trim() && r.major !== "N/A" && r.major !== "None") {
-        majorSet.add(r.major.trim());
-      }
-      if (r.mfg && r.mfg.trim() && r.mfg !== "N/A" && r.mfg !== "None") {
-        mfgSet.add(r.mfg.trim());
-      }
-      if (r.service && r.service.trim() && r.service !== "N/A" && r.service !== "None") {
-        serviceSet.add(r.service.trim());
-      }
-      if (r.major && r.major.trim() && r.major !== "N/A" && r.major !== "None") {
-        areaRelations.push({
-          major: r.major.trim(),
-          mfg: r.mfg && r.mfg !== "None" && r.mfg !== "N/A" ? r.mfg.trim() : null,
-          service: r.service && r.service !== "None" && r.service !== "N/A" ? r.service.trim() : null
-        });
+      const majors = (r.major || "")
+        .split(";")
+        .map((s: string) => s.trim())
+        .filter((s: string) => Boolean(s) && s !== "None" && s !== "N/A");
+      const mfgs = (r.mfg || "")
+        .split(";")
+        .map((s: string) => s.trim())
+        .filter((s: string) => Boolean(s) && s !== "None" && s !== "N/A");
+      const services = (r.service || "")
+        .split(";")
+        .map((s: string) => s.trim())
+        .filter((s: string) => Boolean(s) && s !== "None" && s !== "N/A");
+
+      majors.forEach((s) => majorSet.add(s));
+      mfgs.forEach((s) => mfgSet.add(s));
+      services.forEach((s) => serviceSet.add(s));
+
+      for (const maj of majors) {
+        if (mfgs.length > 0) {
+          for (const m of mfgs) {
+            const key = `${maj}|mfg|${m}`;
+            if (!drilldownRelKeySet.has(key)) {
+              drilldownRelKeySet.add(key);
+              expandedDrilldownRelations.push({ major: maj, mfg: m, service: null });
+            }
+          }
+        }
+        if (services.length > 0) {
+          for (const s of services) {
+            const key = `${maj}|srv|${s}`;
+            if (!drilldownRelKeySet.has(key)) {
+              drilldownRelKeySet.add(key);
+              expandedDrilldownRelations.push({ major: maj, mfg: null, service: s });
+            }
+          }
+        }
+        if (mfgs.length === 0 && services.length === 0) {
+          const key = `${maj}|none`;
+          if (!drilldownRelKeySet.has(key)) {
+            drilldownRelKeySet.add(key);
+            expandedDrilldownRelations.push({ major: maj, mfg: null, service: null });
+          }
+        }
       }
     }
 
@@ -2023,7 +2099,7 @@ export const drilldownEntities: Handler = async (c: any) => {
         majorAreas: Array.from(majorSet).sort(),
         mfgAreas: Array.from(mfgSet).sort(),
         serviceAreas: Array.from(serviceSet).sort(),
-        areaRelations
+        areaRelations: expandedDrilldownRelations
       }
     });
   } catch (error) {
@@ -2730,28 +2806,22 @@ export const nonFilerList: Handler = async (c: any) => {
       }
     }
 
-    if (filterMajor && filterMajor !== "All") {
-      const arr = filterMajor
-        .split(",")
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-      if (arr.length > 0) conditions.push(inArray(binData.majorAreaOfEconomicActivity, arr));
+    const majorList = parseAreaParam(filterMajor);
+    if (majorList.length > 0) {
+      const orClauses = majorList.map((v) => sql`${binData.majorAreaOfEconomicActivity} ILIKE ${"%" + v + "%"}`);
+      conditions.push(or(...orClauses)!);
     }
 
-    if (filterMfg && filterMfg !== "All") {
-      const arr = filterMfg
-        .split(",")
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-      if (arr.length > 0) conditions.push(inArray(binData.areasOfManufacturing, arr));
+    const mfgList = parseAreaParam(filterMfg);
+    if (mfgList.length > 0) {
+      const orClauses = mfgList.map((v) => sql`${binData.areasOfManufacturing} ILIKE ${"%" + v + "%"}`);
+      conditions.push(or(...orClauses)!);
     }
 
-    if (filterService && filterService !== "All") {
-      const arr = filterService
-        .split(",")
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-      if (arr.length > 0) conditions.push(inArray(binData.areasOfService, arr));
+    const serviceList = parseAreaParam(filterService);
+    if (serviceList.length > 0) {
+      const orClauses = serviceList.map((v) => sql`${binData.areasOfService} ILIKE ${"%" + v + "%"}`);
+      conditions.push(or(...orClauses)!);
     }
 
     if (filterFromDate && filterFromDate.trim()) {

@@ -643,9 +643,9 @@ const fetchEntities = async () => {
       }
     });
 
-    if (selectedMajorArea.value.length > 0) params.append('majorArea', selectedMajorArea.value.join(','));
-    if (selectedMfgArea.value.length > 0) params.append('mfgArea', selectedMfgArea.value.join(','));
-    if (selectedServiceArea.value.length > 0) params.append('serviceArea', selectedServiceArea.value.join(','));
+    if (selectedMajorArea.value.length > 0) params.append('majorArea', selectedMajorArea.value.join('|||'));
+    if (selectedMfgArea.value.length > 0) params.append('mfgArea', selectedMfgArea.value.join('|||'));
+    if (selectedServiceArea.value.length > 0) params.append('serviceArea', selectedServiceArea.value.join('|||'));
 
     const res = await axios.get(`/api/return-data-analyser/drilldown-entities?${params.toString()}`);
     entities.value = res.data?.data || [];
@@ -946,15 +946,23 @@ const downloadExcelEntityHistory = () => {
 };
 
 onMounted(async () => {
+  const parseQueryArea = (val: any) => {
+    if (!val) return [];
+    const str = String(val);
+    if (str.includes('|||')) return str.split('|||').map(s => s.trim()).filter(Boolean);
+    if (str.includes(';')) return str.split(';').map(s => s.trim()).filter(Boolean);
+    return str.split(',').map(s => s.trim()).filter(Boolean);
+  };
+
   // Initialize area filters from query if present
   if (route.query.majorArea) {
-    selectedMajorArea.value = String(route.query.majorArea).split(',').map(s => s.trim()).filter(Boolean);
+    selectedMajorArea.value = parseQueryArea(route.query.majorArea);
   }
   if (route.query.mfgArea) {
-    selectedMfgArea.value = String(route.query.mfgArea).split(',').map(s => s.trim()).filter(Boolean);
+    selectedMfgArea.value = parseQueryArea(route.query.mfgArea);
   }
   if (route.query.serviceArea) {
-    selectedServiceArea.value = String(route.query.serviceArea).split(',').map(s => s.trim()).filter(Boolean);
+    selectedServiceArea.value = parseQueryArea(route.query.serviceArea);
   }
 
   await fetchEntities();

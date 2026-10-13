@@ -759,9 +759,9 @@ const fetchAnalytics = async () => {
     } else if (filters.value.topLimit === 'All') {
       params.append('topLimit', 'All');
     }
-    if (selectedMajorArea.value.length > 0) params.append('majorArea', selectedMajorArea.value.join(','));
-    if (selectedMfgArea.value.length > 0) params.append('mfgArea', selectedMfgArea.value.join(','));
-    if (selectedServiceArea.value.length > 0) params.append('serviceArea', selectedServiceArea.value.join(','));
+    if (selectedMajorArea.value.length > 0) params.append('majorArea', selectedMajorArea.value.join('|||'));
+    if (selectedMfgArea.value.length > 0) params.append('mfgArea', selectedMfgArea.value.join('|||'));
+    if (selectedServiceArea.value.length > 0) params.append('serviceArea', selectedServiceArea.value.join('|||'));
     
     url += params.toString();
     const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
