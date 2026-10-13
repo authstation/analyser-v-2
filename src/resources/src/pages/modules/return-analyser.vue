@@ -1,6 +1,9 @@
 <template>
   <div class="min-vh-100 d-flex flex-column position-relative">
     
+    <!-- System Toast Component -->
+    <Toast ref="toastRef" />
+
     <!-- Full-screen Loading Overlay -->
     <ProgressOverlay v-if="loading" label="Processing File..." :progress="processingProgress" color="info">
       Please wait while we parse your Excel file.<br>
@@ -91,6 +94,15 @@
             <button type="button" class="btn-close btn-close-white" @click="closeModal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
+            <!-- Filtered BIN Info Alert -->
+            <div v-if="unmatchedRowsCount > 0" class="alert alert-warning py-2 px-3 mb-3 small d-flex align-items-center">
+              <i class="bi bi-info-circle-fill fs-5 me-2 flex-shrink-0 text-warning"></i>
+              <div>
+                আপলোডকৃত ফাইলের <strong>{{ unmatchedRowsCount }}টি রিটার্ন ({{ unmatchedBinsCount }}টি অনিবন্ধিত বিন)</strong> ফিল্টার করে বাদ দেওয়া হয়েছে, কারণ এগুলো মাস্টার বিন ডেটাতে নিবন্ধিত নেই। 
+                মাস্টার ডেটার সাথে ম্যাচ হওয়া <strong>{{ parsedData.length }}টি রিটার্ন</strong> প্রিভিউতে প্রদর্শিত হচ্ছে যা ডাটাবেজে সংরক্ষণ করা যাবে।
+              </div>
+            </div>
+
             <div class="table-responsive">
               <table class="table  table-striped table-bordered text-nowrap" style="font-size: 0.85rem;">
                 <thead>
@@ -186,6 +198,7 @@ import { Modal } from 'bootstrap';
 import Pagebar from '@/components/Pagebar.vue';
 import { formatDateDisplay } from '@/utils/format';
 import ProgressOverlay from '@/components/ProgressOverlay.vue';
+import Toast from '@/components/Toast.vue';
 
 const authStore = useAuthStore();
 
@@ -198,6 +211,9 @@ let progressInterval: any = null;
 
 // --- Data State ---
 const parsedData = ref<any[]>([]);
+const unmatchedRowsCount = ref(0);
+const unmatchedBinsCount = ref(0);
+const totalFileRows = ref(0);
 const isSaving = ref(false);
 const saving = ref(false);
 const saveProgress = ref(0);
@@ -241,7 +257,10 @@ const handleFileUpload = async (event: Event) => {
     
     processingProgress.value = 100;
     setTimeout(() => {
-      parsedData.value = response.data.data;
+      parsedData.value = response.data.data || [];
+      unmatchedRowsCount.value = response.data.unmatchedRows || 0;
+      unmatchedBinsCount.value = response.data.unmatchedBins || 0;
+      totalFileRows.value = response.data.totalRows || (parsedData.value.length + unmatchedRowsCount.value);
       if (previewModalInst) {
         previewModalInst.show();
       }
@@ -250,7 +269,7 @@ const handleFileUpload = async (event: Event) => {
   } catch (error: any) {
     console.error('File Upload Error:', error);
     const errorMsg = error.response?.data?.error || error.message || 'Failed to upload or parse the file.';
-    alert(errorMsg);
+    showToast(errorMsg, 'danger');
   } finally {
     setTimeout(() => {
       loading.value = false;
@@ -309,10 +328,21 @@ onMounted(() => {
 const closeModal = () => {
   if (previewModalInst) previewModalInst.hide();
   parsedData.value = [];
+  unmatchedRowsCount.value = 0;
+  unmatchedBinsCount.value = 0;
+  totalFileRows.value = 0;
 };
 
 const closeMissingDataModal = () => {
   if (missingDataModalInst) missingDataModalInst.hide();
+};
+
+// --- Toast Component Ref ---
+const toastRef = ref<any>(null);
+
+const showToast = (message: string, type: 'success' | 'danger' | 'warning' | 'info' | 'error' = 'success') => {
+  const bg = type === 'error' ? 'danger' : type;
+  toastRef.value?.toastme(message, bg);
 };
 
 const saveToDatabase = async (startIndex: number | Event = 0) => {
@@ -322,7 +352,6 @@ const saveToDatabase = async (startIndex: number | Event = 0) => {
   currentChunkIndex.value = actualStartIndex;
   
   try {
-    
     const chunkSize = 1000;
     const total = parsedData.value.length;
     
@@ -338,12 +367,18 @@ const saveToDatabase = async (startIndex: number | Event = 0) => {
       saveProgress.value = Math.round((Math.min(i + chunkSize, total) / total) * 100);
     }
 
-    alert(`Success: Data saved successfully.`);
+    const savedCount = totalSaved.value || total;
     closeModal();
+    isSaving.value = false;
+    saving.value = false;
     saveProgress.value = 0;
     totalSaved.value = 0;
     currentChunkIndex.value = 0;
+
+    showToast(`ডাটা সফলভাবে সংরক্ষণ করা হয়েছে (${savedCount}টি রেকর্ড)!`, 'success');
   } catch (error: any) {
+    isSaving.value = false;
+    saving.value = false;
     if (error.response?.status === 400 && error.response?.data?.missingDivisions) {
       missingDivisions.value = error.response.data.missingDivisions;
       missingCircles.value = error.response.data.missingCircles;
@@ -351,7 +386,7 @@ const saveToDatabase = async (startIndex: number | Event = 0) => {
         missingDataModalInst.show();
       }
     } else {
-      alert(error.response?.data?.error || 'Failed to save data to database.');
+      showToast(error.response?.data?.error || 'Failed to save data to database.', 'danger');
     }
   } finally {
     saving.value = false;
@@ -383,14 +418,14 @@ const autoCreateMissingData = async () => {
       }
     }
 
-    alert('Successfully created missing master data!');
+    showToast('Successfully created missing master data!', 'success');
     closeMissingDataModal();
     
     // Retry Save from the chunk that failed
     await saveToDatabase(currentChunkIndex.value);
 
   } catch (error: any) {
-    alert(error.response?.data?.error || 'Failed to auto-create master data.');
+    showToast(error.response?.data?.error || 'Failed to auto-create master data.', 'danger');
   } finally {
     creatingMissing.value = false;
   }

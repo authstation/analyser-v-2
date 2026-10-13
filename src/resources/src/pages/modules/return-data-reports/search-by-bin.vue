@@ -259,12 +259,15 @@ const fetchReport = async (binOverride?: string) => {
 const penaltyBreakdown = computed(() => {
   if (!selectedReport.value) return [];
   if (selectedReport.value.penaltyBreakdown && selectedReport.value.penaltyBreakdown.length > 0) {
-    return selectedReport.value.penaltyBreakdown;
+    return selectedReport.value.penaltyBreakdown.map((row: any) => ({
+      ...row,
+      lastMonth: row.totalMonths <= 1 ? '-' : row.lastMonth
+    }));
   }
   const unfiled = selectedReport.value.grandTotalMonths || selectedReport.value.nonFiledMonths || 0;
   
   let fMonth = selectedReport.value.firstMonth || '-';
-  let lMonth = selectedReport.value.lastMonth || fMonth;
+  let lMonth = selectedReport.value.lastMonth || '-';
   let rate = 10000;
   let rulePeriodStr = '01.07.2019 to 31.03.2024';
 
@@ -275,9 +278,12 @@ const penaltyBreakdown = computed(() => {
         "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December"
       ];
-      if (fMonth === '-') {
-        fMonth = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-        lMonth = fMonth;
+      fMonth = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+      if (unfiled > 1) {
+        const lastD = new Date(d.getFullYear(), d.getMonth() + unfiled - 1, 1);
+        lMonth = `${monthNames[lastD.getMonth()]} ${lastD.getFullYear()}`;
+      } else {
+        lMonth = '-';
       }
       const ym = d.getFullYear() * 100 + (d.getMonth() + 1);
       if (ym >= 202507) {
@@ -296,7 +302,7 @@ const penaltyBreakdown = computed(() => {
       rulePeriodStr,
       totalMonths: unfiled,
       firstMonth: fMonth,
-      lastMonth: unfiled === 1 ? '-' : lMonth,
+      lastMonth: unfiled <= 1 ? '-' : lMonth,
       totalAmount: unfiled * rate
     }
   ];

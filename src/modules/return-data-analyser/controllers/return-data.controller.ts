@@ -950,8 +950,12 @@ export const parse: Handler = async (c: any) => {
       processedData.push(mappedRow);
     }
 
-    // --- Step 1 Enforcement: Check if uploaded BINs exist in bin_data table ---
+    // --- Step 1 Enforcement: Filter uploaded returns to only include BINs registered in bin_data table ---
     const fileBins = Array.from(new Set(processedData.map((r: any) => r.bin).filter(Boolean)));
+    let matchedData = processedData;
+    let unmatchedBinCount = 0;
+    let unmatchedRowCount = 0;
+
     if (fileBins.length > 0) {
       const existingBinSet = new Set<string>();
       const batchCheckSize = 2000;
@@ -965,19 +969,32 @@ export const parse: Handler = async (c: any) => {
       }
 
       const missingBins = fileBins.filter((b) => !existingBinSet.has(b));
-      if (missingBins.length > 0) {
+      unmatchedBinCount = missingBins.length;
+
+      // Filter only rows whose BIN exists in Master BIN data
+      matchedData = processedData.filter((r: any) => r.bin && existingBinSet.has(r.bin));
+      unmatchedRowCount = processedData.length - matchedData.length;
+
+      if (matchedData.length === 0) {
         const sampleMissing = missingBins.slice(0, 5).join(", ");
         const moreCount = missingBins.length > 5 ? ` and ${missingBins.length - 5} more` : "";
         return c.json(
           {
-            error: `BIN Data Not Found: Found ${missingBins.length} entity BIN(s) in the uploaded return file that are not registered in the system (BIN Analyser): [${sampleMissing}${moreCount}].\n\nOnly returns belonging to registered BINs can be uploaded. Please upload the Master BIN data for this Circle/Commissionerate first before uploading return data.`
+            error: `কোনো নিবন্ধিত বিন পাওয়া যায়নি: আপলোডকৃত ফাইলের ${fileBins.length}টি বিনের কোনোটিই মাস্টার ডেটাতে (BIN Analyser) নেই [${sampleMissing}${moreCount}]। অনুগ্রহ করে প্রথমে এই সার্কেল/কমিশনারেটের মাস্টার বিন ডেটা আপলোড করুন।`
           },
           400
         );
       }
     }
 
-    return c.json({ message: "File processed successfully.", data: processedData });
+    return c.json({
+      message: "File processed successfully.",
+      data: matchedData,
+      totalRows: processedData.length,
+      matchedRows: matchedData.length,
+      unmatchedRows: unmatchedRowCount,
+      unmatchedBins: unmatchedBinCount
+    });
   } catch (error: any) {
     console.error("Parse Error:", error);
     return c.json({ error: "Failed to process file." }, 500);
@@ -1088,7 +1105,7 @@ export const save: Handler = async (c: any) => {
       })
       .filter((r) => r.bin !== "");
 
-    const validToInsert = toInsert.filter((row) => {
+    let validToInsert = toInsert.filter((row) => {
       if (approvedCircleIds === null) return true;
       return row.circleId && approvedCircleIds.includes(row.circleId);
     });
@@ -1113,7 +1130,7 @@ export const save: Handler = async (c: any) => {
       return c.json({ error: `Found ${invalidBins.length} rows with invalid BIN format. Expected: ${binDesc}` }, 400);
     }
 
-    // --- Step 1 Enforcement: Reject return data if BIN does not exist in bin_data master table ---
+    // --- Step 1 Enforcement: Filter return data to only include BINs that exist in bin_data master table ---
     const uploadedUniqueBins = Array.from(new Set(validToInsert.map((r) => r.bin).filter(Boolean)));
     if (uploadedUniqueBins.length > 0) {
       // Check existing bins from bin_data in batches to avoid query parameter limit
@@ -1128,13 +1145,11 @@ export const save: Handler = async (c: any) => {
         rows.forEach((r: any) => existingBinSet.add(r.bin));
       }
 
-      const missingBins = uploadedUniqueBins.filter((b) => !existingBinSet.has(b));
-      if (missingBins.length > 0) {
-        const sampleMissing = missingBins.slice(0, 5).join(", ");
-        const moreCount = missingBins.length > 5 ? ` and ${missingBins.length - 5} more` : "";
+      validToInsert = validToInsert.filter((r) => existingBinSet.has(r.bin));
+      if (validToInsert.length === 0) {
         return c.json(
           {
-            error: `BIN Data Not Found: Found ${missingBins.length} entity BIN(s) that are not registered in the system (BIN Analyser): [${sampleMissing}${moreCount}]. Please upload the Master BIN data first before saving return data.`
+            error: "মাস্টার ডেটায় নিবন্ধিত কোনো বিন পাওয়া যায়নি। অনুগ্রহ করে প্রথমে মাস্টার বিন ডেটা আপলোড করুন।"
           },
           400
         );
