@@ -278,7 +278,7 @@
               <button type="button" class="btn btn-secondary" @click="closeModal" :disabled="saving">Cancel</button>
               <button type="button" class="btn btn-success" @click="saveToDatabase" :disabled="saving || parsedData.length === 0">
                 <span v-if="saving" class="spinner-border spinner-border-sm me-2"></span>
-                Save Matched Data ({{ parsedData.length }})
+                Save to Database
               </button>
             </div>
           </div>
