@@ -3,6 +3,7 @@ import type { Handler } from "hono";
 import { db } from "@/framework/facade.js";
 import { eq, sql } from "drizzle-orm";
 import { columnMappings, binData } from "@/modules/bin-analyser/database/models/bin-analyser.js";
+import { returnData } from "@/modules/return-data-analyser/database/models/return-data.js";
 import { circles, policeStations, divisions } from "@/modules/settings/database/models/settings.js";
 import { getSettings, getUserApprovedCircleIds, resolveCircleId } from "@/modules/bin-analyser/utils/helpers.js";
 
@@ -448,26 +449,44 @@ export const save: Handler = async (c: any) => {
       return c.json({ error: 'None of the uploaded rows correspond to your approved offices. Please ensure your Excel file contains the exact Circle spelling (e.g., "B Baria Sadar") and that the "Circle" column is correctly mapped in Settings.' }, 400);
     }
 
-    await db.insert(binData).values(validToInsert).onConflictDoUpdate({
-      target: binData.bin,
-      set: {
-        entityName: sql`EXCLUDED.entity_name`,
-        binIssueDate: sql`EXCLUDED.bin_issue_date`,
-        binStatus: sql`EXCLUDED.bin_status`,
-        forcedRegistration: sql`EXCLUDED.forced_registration`,
-        majorAreaOfEconomicActivity: sql`EXCLUDED.major_area`,
-        areasOfManufacturing: sql`EXCLUDED.manufacturing_area`,
-        areasOfService: sql`EXCLUDED.service_area`,
-        email: sql`EXCLUDED.email`, mobile: sql`EXCLUDED.mobile`,
-        address: sql`EXCLUDED.address`,
-        hqAddress: sql`EXCLUDED.hq_address`,
-        divisionId: sql`EXCLUDED.division_id`,
-        circleId: sql`EXCLUDED.circle_id`, policeStationId: sql`EXCLUDED.police_station_id`,
-        eTin: sql`EXCLUDED.e_tin`, rawJson: sql`EXCLUDED.raw_json`
+    // Deduplicate within the uploaded batch by BIN to prevent PostgreSQL:
+    // "ON CONFLICT DO UPDATE command cannot affect row a second time" (error 21000)
+    const deduplicatedMap = new Map<string, typeof validToInsert[0]>();
+    for (const row of validToInsert) {
+      if (row.bin) {
+        deduplicatedMap.set(row.bin.trim(), row);
       }
-    });
+    }
+    const deduplicatedRows = Array.from(deduplicatedMap.values());
 
-    return c.json({ message: 'Data saved to database successfully!', insertedRows: validToInsert.length });
+    // Batch insert in chunks of 500 to prevent parameter limit overflow and optimize execution
+    const batchSize = 500;
+    for (let i = 0; i < deduplicatedRows.length; i += batchSize) {
+      const batch = deduplicatedRows.slice(i, i + batchSize);
+      await db.insert(binData).values(batch).onConflictDoUpdate({
+        target: binData.bin,
+        set: {
+          entityName: sql`EXCLUDED.entity_name`,
+          binIssueDate: sql`EXCLUDED.bin_issue_date`,
+          binStatus: sql`EXCLUDED.bin_status`,
+          forcedRegistration: sql`EXCLUDED.forced_registration`,
+          majorAreaOfEconomicActivity: sql`EXCLUDED.major_area`,
+          areasOfManufacturing: sql`EXCLUDED.manufacturing_area`,
+          areasOfService: sql`EXCLUDED.service_area`,
+          email: sql`EXCLUDED.email`,
+          mobile: sql`EXCLUDED.mobile`,
+          address: sql`EXCLUDED.address`,
+          hqAddress: sql`EXCLUDED.hq_address`,
+          divisionId: sql`EXCLUDED.division_id`,
+          circleId: sql`EXCLUDED.circle_id`,
+          policeStationId: sql`EXCLUDED.police_station_id`,
+          eTin: sql`EXCLUDED.e_tin`,
+          rawJson: sql`EXCLUDED.raw_json`
+        }
+      });
+    }
+
+    return c.json({ message: 'Data saved to database successfully!', insertedRows: deduplicatedRows.length });
   } catch (error: any) {
     console.error('Save Error:', error);
     return c.json({ error: error.message || 'Failed to save data.' }, 500);
@@ -486,13 +505,58 @@ export const deleteAll: Handler = async (c: any) => {
       if (circle) {
         const circleId = await resolveCircleId(circle);
         if (!circleId) return c.json({ success: false, message: 'Circle not found' }, 404);
+
+        // Check if return data exists for this circle
+        const circleReturnCountRes = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(returnData)
+          .where(eq(returnData.circleId, circleId));
+        const circleReturnCount = Number(circleReturnCountRes[0]?.count || 0);
+
+        if (circleReturnCount > 0) {
+          return c.json({
+            success: false,
+            message: `রিটার্ন ডাটা বিদ্যমান থাকায় সার্কেল "${circle}" এর বিন ডাটা ডিলিট করা যাবে না। প্রথমে রিটার্ন ডাটা ডিলিট করুন। (Cannot delete BIN data for circle "${circle}" because ${circleReturnCount} return records exist. Please delete return data first.)`
+          }, 400);
+        }
+
         await db.delete(binData).where(eq(binData.circleId, circleId));
         return c.json({ success: true, message: `Deleted all data for circle: ${circle}` });
       } else {
+        // Check if any return data exists in the entire system
+        const totalReturnCountRes = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(returnData);
+        const totalReturnCount = Number(totalReturnCountRes[0]?.count || 0);
+
+        if (totalReturnCount > 0) {
+          return c.json({
+            success: false,
+            message: `সিস্টেমে ${totalReturnCount}টি রিটার্ন ডাটা বিদ্যমান থাকায় বিন ডাটা ডিলিট করা যাবে না। প্রথমে রিটার্ন ডাটা ডিলিট করুন। (Cannot delete BIN data because ${totalReturnCount} return records exist. Please delete return data first.)`
+          }, 400);
+        }
+
         await db.delete(binData);
         return c.json({ success: true, message: 'Deleted all BIN data' });
       }
     } else {
+      // Non-admin user: check if any returns exist for BINs uploaded by this user
+      const userReturnCountRes = await db.execute(sql`
+        SELECT count(*) as cnt 
+        FROM "return_data" 
+        WHERE "bin" IN (
+          SELECT "bin" FROM "bin_data" WHERE "uploaded_by" = ${user.id}
+        )
+      `);
+      const userReturnCount = Number((userReturnCountRes as any).rows?.[0]?.cnt || 0);
+
+      if (userReturnCount > 0) {
+        return c.json({
+          success: false,
+          message: `আপনার আপলোডকৃত বিনের বিপরীতে রিটার্ন ডাটা বিদ্যমান থাকায় বিন ডাটা ডিলিট করা যাবে না। প্রথমে সংশ্লিষ্ট রিটার্ন ডাটা ডিলিট করুন।`
+        }, 400);
+      }
+
       await db.delete(binData).where(eq(binData.uploadedBy, user.id));
       return c.json({ success: true, message: 'Deleted your uploaded BIN data' });
     }

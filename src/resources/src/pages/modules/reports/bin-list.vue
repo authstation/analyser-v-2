@@ -627,9 +627,9 @@ const confirmDelete = async () => {
       }
       currentPage.value = 1;
       fetchList();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Delete error', error);
-      alert("An error occurred while deleting data.");
+      alert(error.response?.data?.message || error.response?.data?.error || "An error occurred while deleting data.");
     } finally {
       isDeleting.value = false;
     }

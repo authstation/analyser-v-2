@@ -487,7 +487,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import axios from '@/plugins/axios';
+import { returnDataApi } from '@/services/api/index.js';
 import * as XLSX from 'xlsx';
 
 const route = useRoute();
@@ -764,8 +764,8 @@ const fetchReportData = async () => {
 
   isLoading.value = true;
   try {
-    const res = await axios.get(`/api/return-data-analyser/entity-details-report?bin=${encodeURIComponent(bin)}`);
-    const data = res.data?.data;
+    const res = await returnDataApi.getEntityDetailsReport({ bin });
+    const data = res?.data;
     if (data) {
       entityInfo.value = data.entity;
       complianceInfo.value = data.compliance || {};

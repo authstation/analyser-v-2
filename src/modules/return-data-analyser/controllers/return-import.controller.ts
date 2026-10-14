@@ -389,9 +389,19 @@ export const save: Handler = async (c: any) => {
     }
 
     if (validToInsert.length > 0) {
-      const batchSize = 1000;
-      for (let i = 0; i < validToInsert.length; i += batchSize) {
-        const batch = validToInsert.slice(i, i + batchSize);
+      // Deduplicate by bin and taxPeriod within the batch to prevent PostgresError 21000
+      const deduplicatedReturnMap = new Map<string, typeof validToInsert[0]>();
+      for (const row of validToInsert) {
+        if (row.bin && row.taxPeriod) {
+          const key = `${row.bin.trim()}_${new Date(row.taxPeriod).toISOString().slice(0, 10)}`;
+          deduplicatedReturnMap.set(key, row);
+        }
+      }
+      const deduplicatedReturns = Array.from(deduplicatedReturnMap.values());
+
+      const batchSize = 500;
+      for (let i = 0; i < deduplicatedReturns.length; i += batchSize) {
+        const batch = deduplicatedReturns.slice(i, i + batchSize);
         await db
           .insert(returnData)
           .values(batch)
@@ -425,9 +435,11 @@ export const save: Handler = async (c: any) => {
             }
           });
       }
+
+      return c.json({ message: "Data saved successfully.", insertedRows: deduplicatedReturns.length });
     }
 
-    return c.json({ message: "Data saved successfully.", insertedRows: validToInsert.length });
+    return c.json({ message: "Data saved successfully.", insertedRows: 0 });
   } catch (error: any) {
     console.error("Save Error:", error);
     return c.json({ error: error.message || "Failed to save data." }, 500);

@@ -3,13 +3,14 @@ import { z } from "@/framework/facade.js";
 import { requireRole } from "@/middlewares/role-middleware.js";
 import { authMiddleware } from "@/middlewares/auth-middleware.js";
 import { filters, allStats, list, parse, save, deleteAll, search, drilldownPivot, comparison, duplicates, exportData } from "@/modules/bin-analyser/controllers/bin-analyser.controller.js";
+import { BinListResponseSchema, BinFilterOptionsSchema, BinStatsResponseSchema, BinMessageResponseSchema } from "@/modules/bin-analyser/controllers/bin-analyser.schema.js";
 
 const listRoute = createRoute({
   path: "/list",
   method: "get",
   tags: ["BinAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "List fetched successfully")
+    [HttpStatusCodes.OK]: jsonContent(BinListResponseSchema, "List fetched successfully")
   }
 });
 
@@ -18,7 +19,7 @@ const filtersRoute = createRoute({
   method: "get",
   tags: ["BinAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "Filters fetched successfully")
+    [HttpStatusCodes.OK]: jsonContent(BinFilterOptionsSchema, "Filters fetched successfully")
   }
 });
 
@@ -27,7 +28,7 @@ const allStatsRoute = createRoute({
   method: "get",
   tags: ["BinAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "Dashboard stats fetched successfully")
+    [HttpStatusCodes.OK]: jsonContent(BinStatsResponseSchema, "Dashboard stats fetched successfully")
   }
 });
 
@@ -90,7 +91,7 @@ const parseRoute = createRoute({
   method: "post",
   tags: ["BinAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "File parsed successfully")
+    [HttpStatusCodes.OK]: jsonContent(BinMessageResponseSchema, "File parsed successfully")
   }
 });
 
@@ -99,7 +100,7 @@ const deleteRoute = createRoute({
   method: "delete",
   tags: ["BinAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "Data deleted successfully")
+    [HttpStatusCodes.OK]: jsonContent(BinMessageResponseSchema, "Data deleted successfully")
   }
 });
 
@@ -108,7 +109,7 @@ const saveRoute = createRoute({
   method: "post",
   tags: ["BinAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "Data saved successfully")
+    [HttpStatusCodes.OK]: jsonContent(BinMessageResponseSchema, "Data saved successfully")
   }
 });
 

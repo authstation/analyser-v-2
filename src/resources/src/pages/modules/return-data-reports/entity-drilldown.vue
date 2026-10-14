@@ -400,7 +400,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import axios from '@/plugins/axios';
+import { returnDataApi } from '@/services/api/index.js';
 import * as XLSX from 'xlsx';
 import MultiSelectDropdown from '@/components/common/MultiSelectDropdown.vue';
 import { Bar, Line } from 'vue-chartjs';
@@ -636,26 +636,26 @@ const resetAreaFilters = () => {
 const fetchEntities = async () => {
   isLoading.value = true;
   try {
-    const params = new URLSearchParams();
+    const queryParams: Record<string, any> = {};
     ['classificationType', 'categoryValue', 'fromDate', 'toDate', 'circleId', 'policeStationId'].forEach(key => {
       if (route.query[key]) {
-        params.append(key, String(route.query[key]));
+        queryParams[key] = String(route.query[key]);
       }
     });
 
-    if (selectedMajorArea.value.length > 0) params.append('majorArea', selectedMajorArea.value.join('|||'));
-    if (selectedMfgArea.value.length > 0) params.append('mfgArea', selectedMfgArea.value.join('|||'));
-    if (selectedServiceArea.value.length > 0) params.append('serviceArea', selectedServiceArea.value.join('|||'));
+    if (selectedMajorArea.value.length > 0) queryParams.majorArea = selectedMajorArea.value.join('|||');
+    if (selectedMfgArea.value.length > 0) queryParams.mfgArea = selectedMfgArea.value.join('|||');
+    if (selectedServiceArea.value.length > 0) queryParams.serviceArea = selectedServiceArea.value.join('|||');
 
-    const res = await axios.get(`/api/return-data-analyser/drilldown-entities?${params.toString()}`);
-    entities.value = res.data?.data || [];
+    const res = await returnDataApi.getDrilldownEntities(queryParams);
+    entities.value = res?.data || [];
 
     // Populate area filter options strictly from institutions matching this drilldown context
-    if (res.data?.areaOptions && uniqueMajorAreas.value.length === 0 && uniqueMfgAreasBase.value.length === 0 && uniqueServiceAreasBase.value.length === 0) {
-      uniqueMajorAreas.value = res.data.areaOptions.majorAreas || [];
-      uniqueMfgAreasBase.value = res.data.areaOptions.mfgAreas || [];
-      uniqueServiceAreasBase.value = res.data.areaOptions.serviceAreas || [];
-      areaRelations.value = res.data.areaOptions.areaRelations || [];
+    if (res?.areaOptions && uniqueMajorAreas.value.length === 0 && uniqueMfgAreasBase.value.length === 0 && uniqueServiceAreasBase.value.length === 0) {
+      uniqueMajorAreas.value = res.areaOptions.majorAreas || [];
+      uniqueMfgAreasBase.value = res.areaOptions.mfgAreas || [];
+      uniqueServiceAreasBase.value = res.areaOptions.serviceAreas || [];
+      areaRelations.value = res.areaOptions.areaRelations || [];
     }
 
     if (entities.value.length > 0) {
@@ -685,8 +685,8 @@ const selectEntity = async (bin: string) => {
 
   isTrendLoading.value = true;
   try {
-    const res = await axios.get(`/api/return-data-analyser/entity-trends?bin=${bin}`);
-    const data = res.data?.data;
+    const res = await returnDataApi.getEntityTrends({ bin });
+    const data = res?.data;
     if (data) {
       if (data.entity) selectedEntityInfo.value = data.entity;
       monthlyTrends.value = data.monthly || [];

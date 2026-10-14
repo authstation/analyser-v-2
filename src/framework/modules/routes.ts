@@ -17,9 +17,12 @@ export async function registerModuleRoutes(app: OpenAPIHono) {
       const modName = moduleNameFromPath(file);
       app.route(`/api/${modName}`, route.default);
 
-      // Alias for modules with hyphenated names like return-data-analyser -> return-data
-      if (modName === "return-data-analyser") {
-        app.route(`/api/return-data`, route.default);
+      // Support optional module route aliases
+      if (route.alias) {
+        const aliases = Array.isArray(route.alias) ? route.alias : [route.alias];
+        for (const alias of aliases) {
+          app.route(alias, route.default);
+        }
       }
     }
   }

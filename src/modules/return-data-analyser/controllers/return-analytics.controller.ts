@@ -1,5 +1,5 @@
 import type { Handler } from "hono";
-import { db } from "@/framework/facade.js";
+import { db, cache } from "@/framework/facade.js";
 import { and, eq, inArray, sql, isNotNull } from "drizzle-orm";
 import { binData } from "@/modules/bin-analyser/database/models/bin-analyser.js";
 import { returnData } from "@/modules/return-data-analyser/database/models/return-data.js";
@@ -23,10 +23,15 @@ export const filterOptions: Handler = async (c: any) => {
           .filter(Boolean)
       : [];
 
-    const circleWhere =
-      approvedCircleIds !== null
-        ? and(isNotNull(binData.circleId), inArray(binData.circleId, approvedCircleIds))
-        : isNotNull(binData.circleId);
+    const userKey = user?.id ?? "public";
+    const circleKey = filterCircles || "all";
+    const cacheKey = `return-data:filter-options:${userKey}:${circleKey}`;
+
+    const data = await cache.remember(cacheKey, 300, async () => {
+      const circleWhere =
+        approvedCircleIds !== null
+          ? and(isNotNull(binData.circleId), inArray(binData.circleId, approvedCircleIds))
+          : isNotNull(binData.circleId);
 
     const psQuery =
       circlesArr.length > 0
@@ -154,28 +159,31 @@ export const filterOptions: Handler = async (c: any) => {
       }
     }
 
-    return c.json({
-      circles: circlesList
-        .map((c: any) => c.circle)
-        .filter(Boolean)
-        .sort(),
-      policeStations: policeStationsList
-        .map((p: any) => p.policeStation)
-        .filter(Boolean)
-        .sort(),
-      statuses: statuses
-        .map((s: any) => s.status)
-        .filter(Boolean)
-        .sort(),
-      regTypes: regTypes
-        .map((r: any) => (r.regType === "Yes" ? "Forced" : r.regType === "No" ? "Regular" : r.regType))
-        .filter(Boolean)
-        .sort(),
-      majorAreas: Array.from(distinctMajorSet).sort(),
-      mfgAreas: Array.from(distinctMfgSet).sort(),
-      serviceAreas: Array.from(distinctServiceSet).sort(),
-      areaRelations: expandedAreaRelations
+      return {
+        circles: circlesList
+          .map((c: any) => c.circle)
+          .filter(Boolean)
+          .sort(),
+        policeStations: policeStationsList
+          .map((p: any) => p.policeStation)
+          .filter(Boolean)
+          .sort(),
+        statuses: statuses
+          .map((s: any) => s.status)
+          .filter(Boolean)
+          .sort(),
+        regTypes: regTypes
+          .map((r: any) => (r.regType === "Yes" ? "Forced" : r.regType === "No" ? "Regular" : r.regType))
+          .filter(Boolean)
+          .sort(),
+        majorAreas: Array.from(distinctMajorSet).sort(),
+        mfgAreas: Array.from(distinctMfgSet).sort(),
+        serviceAreas: Array.from(distinctServiceSet).sort(),
+        areaRelations: expandedAreaRelations
+      };
     });
+
+    return c.json(data);
   } catch (error) {
     console.error("Filter Options Error:", error);
     return c.json({ error: "Failed to fetch options" }, 500);
@@ -195,16 +203,39 @@ export const analytics: Handler = async (c: any) => {
 
   let fromDateStr = fromDate;
   let toDateStr = toDate;
-  if (!fromDateStr || !toDateStr) {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1);
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const yyyy = d.getFullYear();
-    fromDateStr = `${yyyy}-${mm}`;
-    toDateStr = `${yyyy}-${mm}`;
-  }
 
   try {
+    if (!fromDateStr || !toDateStr) {
+      const [binMinMax, returnMinMax] = await Promise.all([
+        db.execute(sql`
+          SELECT 
+            min(cast("bin_issue_date" as text)) as min_d, 
+            max(cast("bin_issue_date" as text)) as max_d 
+          FROM "bin_data" 
+          WHERE "bin_status" NOT IN ('Cancelled', 'Suspended')
+        `),
+        db.execute(sql`
+          SELECT 
+            min(cast("tax_period" as text)) as min_p, 
+            max(cast("tax_period" as text)) as max_p 
+          FROM "return_data"
+        `)
+      ]);
+
+      const binMin = extractRows(binMinMax)[0]?.min_d;
+      const binMax = extractRows(binMinMax)[0]?.max_d;
+      const retMin = extractRows(returnMinMax)[0]?.min_p;
+      const retMax = extractRows(returnMinMax)[0]?.max_p;
+
+      if (!fromDateStr) {
+        const candidates = [binMin, retMin].filter(Boolean).map((s: string) => String(s).slice(0, 7)).sort();
+        fromDateStr = candidates[0] || "2026-07";
+      }
+      if (!toDateStr) {
+        const candidates = [binMax, retMax].filter(Boolean).map((s: string) => String(s).slice(0, 7)).sort();
+        toDateStr = candidates[candidates.length - 1] || "2026-10";
+      }
+    }
     let cIds: number[] = [];
     if (circleId)
       cIds = circleId
@@ -319,6 +350,59 @@ export const analytics: Handler = async (c: any) => {
     );
     const totalRegBins = eligiblePerMonth.reduce((sum, r) => sum + (Number(r[0]?.cnt) || 0), 0);
 
+    // Method 1: Total distinct entities eligible during this period
+    const eligibleEntitiesResult = extractRows(
+      await db.execute(sql`
+      SELECT COUNT(DISTINCT "bin_data"."bin") as cnt FROM "bin_data"
+      WHERE "bin_data"."bin_status" NOT IN ('Cancelled', 'Suspended')
+        AND ("bin_data"."bin_issue_date" IS NULL OR cast("bin_data"."bin_issue_date" as date) <= (cast(to_date(${toDateStr}, 'YYYY-MM') as date) + interval '1 month' - interval '1 day'))
+      ${
+        !isUnauthorized && allowedCircleIds !== null && allowedCircleIds.length > 0
+          ? sql`AND "bin_data"."circle_id" IN (${sql.join(
+              allowedCircleIds.map((id: number) => sql`${id}`),
+              sql`, `
+            )})`
+          : isUnauthorized
+            ? sql`AND 1=0`
+            : sql``
+      }
+      ${
+        psIds.length > 0
+          ? sql`AND "bin_data"."police_station_id" IN (${sql.join(
+              psIds.map((id: number) => sql`${id}`),
+              sql`, `
+            )})`
+          : sql``
+      }
+      ${
+        majorAreas.length > 0
+          ? sql`AND (${sql.join(
+              majorAreas.map((a: string) => sql`"bin_data"."major_area" ILIKE ${"%" + a + "%"}`),
+              sql` OR `
+            )})`
+          : sql``
+      }
+      ${
+        mfgAreas.length > 0
+          ? sql`AND (${sql.join(
+              mfgAreas.map((a: string) => sql`"bin_data"."manufacturing_area" ILIKE ${"%" + a + "%"}`),
+              sql` OR `
+            )})`
+          : sql``
+      }
+      ${
+        serviceAreas.length > 0
+          ? sql`AND (${sql.join(
+              serviceAreas.map((a: string) => sql`"bin_data"."service_area" ILIKE ${"%" + a + "%"}`),
+              sql` OR `
+            )})`
+          : sql``
+      }
+    `)
+    );
+    const totalEligibleEntities = Number(eligibleEntitiesResult[0]?.cnt) || 0;
+
+    // Distinct entities who submitted return in this period
     const totalReturnBinsResult = extractRows(
       await db.execute(sql`
       SELECT COUNT(DISTINCT "return_data"."bin") as cnt
@@ -328,7 +412,29 @@ export const analytics: Handler = async (c: any) => {
     `)
     );
     const totalReturnBins = Number(totalReturnBinsResult[0]?.cnt) || 0;
-    const submissionPercentage = totalRegBins > 0 ? Math.round((totalReturnBins / totalRegBins) * 100 * 100) / 100 : 0;
+
+    // Total actual return rows/submissions in this period
+    const totalSubmittedReturnsResult = extractRows(
+      await db.execute(sql`
+      SELECT COUNT("return_data"."id") as cnt
+      FROM "return_data"
+      INNER JOIN "bin_data" ON "return_data"."bin" = "bin_data"."bin"
+      WHERE ${dateFilter}
+    `)
+    );
+    const totalSubmittedReturns = Number(totalSubmittedReturnsResult[0]?.cnt) || 0;
+
+    // Method 1 Percentage (Entity-level)
+    const entitySubmissionPercentage = totalEligibleEntities > 0 
+      ? Math.round((totalReturnBins / totalEligibleEntities) * 100 * 100) / 100 
+      : 0;
+
+    // Method 2 Percentage (Return-slot level)
+    const returnSubmissionPercentage = totalRegBins > 0 
+      ? Math.round((totalSubmittedReturns / totalRegBins) * 100 * 100) / 100 
+      : 0;
+
+    const submissionPercentage = entitySubmissionPercentage;
 
     const byActivityResult = extractRows(
       await db.execute(sql`
@@ -588,7 +694,19 @@ export const analytics: Handler = async (c: any) => {
       data: {
         submissionPercentage,
         totalReturnBins,
-        totalRegBins,
+        totalRegBins: totalEligibleEntities,
+        totalExpectedReturns: totalRegBins,
+        totalSubmittedReturns,
+        entityCompliance: {
+          submittedEntities: totalReturnBins,
+          eligibleEntities: totalEligibleEntities,
+          percentage: entitySubmissionPercentage
+        },
+        returnCompliance: {
+          submittedReturns: totalSubmittedReturns,
+          expectedReturns: totalRegBins,
+          percentage: returnSubmissionPercentage
+        },
         byActivity,
         byRegistration,
         riskBreakdown: { high, risky, low, safe, newlyRisky, improving },

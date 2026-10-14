@@ -1,13 +1,14 @@
 import { createRoute, group, HttpStatusCodes, jsonContent, z } from "@/framework/facade.js";
 import { authMiddleware } from "@/middlewares/auth-middleware.js";
 import { filterOptions, analytics, fyComparison, yearComparison, list, searchOptions, deleteAll, parse, save, drilldownEntities, entityTrends, entityDetailsReport, nonFilerList } from "@/modules/return-data-analyser/controllers/return-data.controller.js";
+import { ReturnFilterOptionsResponseSchema, ReturnAnalyticsResponseSchema, ReturnListResponseSchema, ReturnMessageResponseSchema } from "@/modules/return-data-analyser/controllers/return-data.schema.js";
 
 const filterOptionsRoute = createRoute({
   path: "/filter-options",
   method: "get",
   tags: ["ReturnDataAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "Filter options fetched successfully")
+    [HttpStatusCodes.OK]: jsonContent(ReturnFilterOptionsResponseSchema, "Filter options fetched successfully")
   }
 });
 
@@ -16,7 +17,7 @@ const analyticsRoute = createRoute({
   method: "get",
   tags: ["ReturnDataAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "Analytics fetched successfully")
+    [HttpStatusCodes.OK]: jsonContent(ReturnAnalyticsResponseSchema, "Analytics fetched successfully")
   }
 });
 
@@ -43,7 +44,7 @@ const listRoute = createRoute({
   method: "get",
   tags: ["ReturnDataAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "List fetched successfully")
+    [HttpStatusCodes.OK]: jsonContent(ReturnListResponseSchema, "List fetched successfully")
   }
 });
 
@@ -61,7 +62,7 @@ const deleteAllRoute = createRoute({
   method: "delete",
   tags: ["ReturnDataAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "Deleted successfully")
+    [HttpStatusCodes.OK]: jsonContent(ReturnMessageResponseSchema, "Deleted successfully")
   }
 });
 
@@ -70,7 +71,7 @@ const parseRoute = createRoute({
   method: "post",
   tags: ["ReturnDataAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "Parsed successfully")
+    [HttpStatusCodes.OK]: jsonContent(ReturnMessageResponseSchema, "Parsed successfully")
   }
 });
 
@@ -79,7 +80,7 @@ const saveRoute = createRoute({
   method: "post",
   tags: ["ReturnDataAnalyser"],
   responses: {
-    [HttpStatusCodes.OK]: jsonContent(z.any(), "Saved successfully")
+    [HttpStatusCodes.OK]: jsonContent(ReturnMessageResponseSchema, "Saved successfully")
   }
 });
 
@@ -119,6 +120,8 @@ const nonFilerListRoute = createRoute({
   }
 });
 
+export const alias = "/api/return-data";
+
 export default group(authMiddleware)
   .api(filterOptionsRoute, filterOptions)
   .api(analyticsRoute, analytics)
@@ -133,4 +136,5 @@ export default group(authMiddleware)
   .api(entityTrendsRoute, entityTrends)
   .api(entityDetailsReportRoute, entityDetailsReport)
   .api(nonFilerListRoute, nonFilerList);
+
 

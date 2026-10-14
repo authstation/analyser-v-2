@@ -1,5 +1,5 @@
 import type { Handler } from "hono";
-import { db } from "@/framework/facade.js";
+import { db, cache } from "@/framework/facade.js";
 import { and, eq, inArray, isNotNull, sql, desc, or } from "drizzle-orm";
 import { binData } from "@/modules/bin-analyser/database/models/bin-analyser.js";
 import { circles, policeStations, divisions } from "@/modules/settings/database/models/settings.js";
@@ -67,11 +67,15 @@ export const filters: Handler = async (c: any) => {
     const circleCondition = getCircleCondition(approvedCircleIds, binData.circleId);
     const psCircleCondition = getCircleCondition(approvedCircleIds, policeStations.circleId);
     const filterCircle = c.req.query('circle');
+    const userKey = user?.id ?? "public";
+    const circleKey = filterCircle || "all";
+    const cacheKey = `bin:filters:${userKey}:${circleKey}`;
 
-    const [circlesList, policeStationsList, statuses, forcedRegistrations, yearsResult, [totalRows], majorAreas, mfgAreas, serviceAreas, areaRelations] = await Promise.all([
-      db.selectDistinct({ circle: circles.name }).from(binData)
-        .leftJoin(circles, eq(binData.circleId, circles.id))
-        .where(and(isNotNull(binData.circleId), circleCondition)),
+    const data = await cache.remember(cacheKey, 300, async () => {
+      const [circlesList, policeStationsList, statuses, forcedRegistrations, yearsResult, [totalRows], majorAreas, mfgAreas, serviceAreas, areaRelations] = await Promise.all([
+        db.selectDistinct({ circle: circles.name }).from(binData)
+          .leftJoin(circles, eq(binData.circleId, circles.id))
+          .where(and(isNotNull(binData.circleId), circleCondition)),
       db.selectDistinct({ policeStation: policeStations.name }).from(policeStations)
         .leftJoin(circles, eq(policeStations.circleId, circles.id))
         .where(and(
@@ -162,18 +166,21 @@ export const filters: Handler = async (c: any) => {
       }
     }
 
-    return c.json({
-      total: totalRows?.total || 0,
-      circles: circlesList.map(c => c.circle).filter(Boolean).sort(),
-      policeStations: policeStationsList.map(p => p.policeStation).sort(),
-      statuses: statuses.map(s => s.binStatus).sort(),
-      forcedRegistrations: forcedRegistrations.map(f => f.forcedRegistration).sort(),
-      majorAreas: Array.from(distinctMajorSet).sort(),
-      mfgAreas: Array.from(distinctMfgSet).sort(),
-      serviceAreas: Array.from(distinctServiceSet).sort(),
-      areaRelations: expandedAreaRelations,
-      years: yearsResult.map(y => Math.floor(y.year).toString())
+      return {
+        total: totalRows?.total || 0,
+        circles: circlesList.map(c => c.circle).filter(Boolean).sort(),
+        policeStations: policeStationsList.map(p => p.policeStation).sort(),
+        statuses: statuses.map(s => s.binStatus).sort(),
+        forcedRegistrations: forcedRegistrations.map(f => f.forcedRegistration).sort(),
+        majorAreas: Array.from(distinctMajorSet).sort(),
+        mfgAreas: Array.from(distinctMfgSet).sort(),
+        serviceAreas: Array.from(distinctServiceSet).sort(),
+        areaRelations: expandedAreaRelations,
+        years: yearsResult.map(y => Math.floor(y.year).toString())
+      };
     });
+
+    return c.json(data);
   } catch (error) {
     console.error(error);
     return c.json({ error: 'Failed to fetch filters' }, 500);

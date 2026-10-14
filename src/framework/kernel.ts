@@ -4,13 +4,11 @@ import { runModelMigrationHooks } from "@/framework/database/migrate-hooks.js";
 import { createHttpApp } from "@/framework/http/app.js";
 import { ensurePublicDir, uiIndexMiddleware, uiStaticMiddleware, hasUiBuild } from "@/framework/http/static.js";
 import { registerModuleRoutes } from "@/framework/modules/routes.js";
+import { runModuleBootstraps } from "@/framework/modules/bootstrap.js";
 import { bootQueueJobs } from "@/framework/queue/queue.js";
 import { setupQueueDashboard } from "@/framework/queue/ui.js";
 import { initRedis } from "@/framework/redis/client.js";
 import { storage } from "@/framework/storage/storage.js";
-
-import { bootstrapAdminUser } from "@/modules/auth/bootstrap/admin.js";
-import { bootstrapVersionAnnouncement } from "@/modules/notifications/bootstrap/announcement.js";
 
 /**
  * Why: Assembles app kernel and boots all framework dependencies.
@@ -27,8 +25,7 @@ export async function createKernel() {
 
   await initDatabase();
   await runModelMigrationHooks();
-  await bootstrapAdminUser();
-  await bootstrapVersionAnnouncement();
+  await runModuleBootstraps();
   await bootQueueJobs();
   await registerModuleRoutes(app);
 

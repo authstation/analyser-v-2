@@ -137,13 +137,37 @@
                 </button>
               </div>
             </div>
-            <div class="card-body text-center p-4 d-flex flex-column justify-content-center flex-grow-1">
-              <h2 class="display-5 fw-bold text-info mb-0">
-                {{ analyticsData.submissionPercentage }}%
-              </h2>
-              <p class="text-muted mb-0 fs-5 mt-2">of Return-Eligible Entities have Submitted eVAT Return</p>
-              <div class="small text-secondary mt-1">
-                ({{ analyticsData.totalReturnBins }} out of {{ analyticsData.totalRegBins }} Return-Eligible Entities)
+            <div class="card-body p-3 d-flex flex-column justify-content-center flex-grow-1">
+              <div class="row align-items-center g-0 text-center">
+                <!-- Method 1: Entity-Level Compliance -->
+                <div class="col-6 pe-3 border-end border-secondary">
+                  <div class="d-inline-flex align-items-center gap-1 badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-2 py-1 mb-2 small fw-semibold"
+                       title="Unique Registered Entities that submitted at least 1 return in this period">
+                    <i class="bi bi-building"></i> Entity Compliance
+                  </div>
+                  <h3 class="display-6 fw-bold text-info mb-0">
+                    {{ analyticsData.entityCompliance?.percentage ?? analyticsData.submissionPercentage ?? 0 }}%
+                  </h3>
+                  <div class="text-light small mt-1 fw-semibold">Unique Entities Submitted</div>
+                  <div class="small text-secondary mt-1 font-monospace" style="font-size: 0.82rem;">
+                    <span class="text-info fw-bold">{{ analyticsData.entityCompliance?.submittedEntities ?? analyticsData.totalReturnBins ?? 0 }}</span> of <span class="text-light">{{ analyticsData.entityCompliance?.eligibleEntities ?? analyticsData.totalRegBins ?? 0 }}</span> Entities
+                  </div>
+                </div>
+
+                <!-- Method 2: Return-Level Compliance -->
+                <div class="col-6 ps-3">
+                  <div class="d-inline-flex align-items-center gap-1 badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1 mb-2 small fw-semibold"
+                       title="Actual returns submitted vs total expected returns across all selected months">
+                    <i class="bi bi-file-earmark-check"></i> Return Compliance
+                  </div>
+                  <h3 class="display-6 fw-bold text-warning mb-0">
+                    {{ analyticsData.returnCompliance?.percentage ?? 0 }}%
+                  </h3>
+                  <div class="text-light small mt-1 fw-semibold">Expected Returns Filed</div>
+                  <div class="small text-secondary mt-1 font-monospace" style="font-size: 0.82rem;">
+                    <span class="text-warning fw-bold">{{ analyticsData.returnCompliance?.submittedReturns ?? 0 }}</span> of <span class="text-light">{{ analyticsData.returnCompliance?.expectedReturns ?? analyticsData.totalExpectedReturns ?? analyticsData.totalRegBins ?? 0 }}</span> Returns
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -412,8 +436,8 @@ const prevMonth = getPrevMonthString();
 const filters = ref({
   circleIds: [] as number[],
   policeStationIds: [] as number[],
-  fromDate: prevMonth,
-  toDate: prevMonth,
+  fromDate: '',
+  toDate: '',
   topLimit: 'All'
 });
 
@@ -468,8 +492,8 @@ const resetAllFilters = () => {
   filters.value.circleIds = [];
   selectedPsNames.value = [];
   filters.value.policeStationIds = [];
-  filters.value.fromDate = prevMonth;
-  filters.value.toDate = prevMonth;
+  filters.value.fromDate = '';
+  filters.value.toDate = '';
   selectedMajorArea.value = [];
   selectedMfgArea.value = [];
   selectedServiceArea.value = [];
