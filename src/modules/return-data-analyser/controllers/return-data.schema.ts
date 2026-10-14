@@ -38,4 +38,9 @@ export const ReturnMessageResponseSchema = z.object({
   data: z.any().optional(),
   error: z.string().optional(),
   insertedRows: z.number().optional(),
-});
+  totalRows: z.number().optional(),
+  matchedRows: z.number().optional(),
+  unmatchedRows: z.number().optional(),
+  unmatchedBins: z.number().optional(),
+  unmatchedList: z.array(z.any()).optional(),
+}).passthrough();

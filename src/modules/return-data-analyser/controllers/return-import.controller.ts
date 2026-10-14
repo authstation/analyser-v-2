@@ -187,6 +187,7 @@ export const parse: Handler = async (c: any) => {
     let matchedData = processedData;
     let unmatchedBinCount = 0;
     let unmatchedRowCount = 0;
+    let unmatchedList: any[] = [];
 
     if (fileBins.length > 0) {
       const existingBinSet = new Set<string>();
@@ -205,14 +206,42 @@ export const parse: Handler = async (c: any) => {
 
       // Filter only rows whose BIN exists in Master BIN data
       matchedData = processedData.filter((r: any) => r.bin && existingBinSet.has(r.bin));
-      unmatchedRowCount = processedData.length - matchedData.length;
+      const unmatchedRowsList = processedData.filter((r: any) => !r.bin || !existingBinSet.has(r.bin));
+      unmatchedRowCount = unmatchedRowsList.length;
+
+      unmatchedList = unmatchedRowsList.map((r: any) => {
+        let rawObj: any = {};
+        try {
+          rawObj = typeof r.rawJson === "string" ? JSON.parse(r.rawJson) : r.rawJson || {};
+        } catch {
+          rawObj = {};
+        }
+
+        const nameKey = Object.keys(rawObj).find((k) => {
+          const l = k.trim().toLowerCase();
+          return l.includes("taxpayer") || l.includes("entity") || l.includes("name");
+        });
+
+        return {
+          bin: r.bin || "N/A",
+          name: nameKey ? String(rawObj[nameKey] || "") : "",
+          submissionId: r.submission_id || "",
+          taxPeriod: r.tax_period || "",
+          circle: r.circle || "",
+          division: r.division || "",
+          reason: !r.bin ? "Missing BIN in Return" : "BIN not in Master Database"
+        };
+      });
 
       if (matchedData.length === 0) {
         const sampleMissing = missingBins.slice(0, 5).join(", ");
         const moreCount = missingBins.length > 5 ? ` and ${missingBins.length - 5} more` : "";
         return c.json(
           {
-            error: `কোনো নিবন্ধিত বিন পাওয়া যায়নি: আপলোডকৃত ফাইলের ${fileBins.length}টি বিনের কোনোটিই মাস্টার ডেটাতে (BIN Analyser) নেই [${sampleMissing}${moreCount}]। অনুগ্রহ করে প্রথমে এই সার্কেল/কমিশনারেটের মাস্টার বিন ডেটা আপলোড করুন।`
+            error: `কোনো নিবন্ধিত বিন পাওয়া যায়নি: আপলোডকৃত ফাইলের ${fileBins.length}টি বিনের কোনোটিই মাস্টার ডেটাতে (BIN Analyser) নেই [${sampleMissing}${moreCount}]। অনুগ্রহ করে প্রথমে এই সার্কেল/কমিশনারেটের মাস্টার বিন ডেটা আপলোড করুন।`,
+            unmatchedList,
+            unmatchedRows: unmatchedRowCount,
+            unmatchedBins: unmatchedBinCount
           },
           400
         );
@@ -225,7 +254,8 @@ export const parse: Handler = async (c: any) => {
       totalRows: processedData.length,
       matchedRows: matchedData.length,
       unmatchedRows: unmatchedRowCount,
-      unmatchedBins: unmatchedBinCount
+      unmatchedBins: unmatchedBinCount,
+      unmatchedList
     });
   } catch (error: any) {
     console.error("Parse Error:", error);

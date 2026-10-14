@@ -88,23 +88,65 @@
     <!-- Preview Modal -->
     <div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true" ref="previewModalRef">
       <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content bg-surface  border-custom">
-          <div class="modal-header border-custom">
-            <h5 class="modal-title">Data Preview ({{ parsedData.length }} rows)</h5>
+        <div class="modal-content bg-surface border-custom">
+          <div class="modal-header border-custom d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <h5 class="modal-title mb-0 me-2">Data Processing Preview</h5>
+              <!-- Tab Switches -->
+              <div class="btn-group btn-group-sm">
+                <button 
+                  type="button" 
+                  class="btn" 
+                  :class="activeModalTab === 'matched' ? 'btn-primary' : 'btn-outline-secondary text-light'" 
+                  @click="activeModalTab = 'matched'"
+                >
+                  <i class="bi bi-check-circle me-1"></i> Matched Returns ({{ parsedData.length }})
+                </button>
+                <button 
+                  v-if="unmatchedList.length > 0"
+                  type="button" 
+                  class="btn" 
+                  :class="activeModalTab === 'unmatched' ? 'btn-warning text-dark fw-bold' : 'btn-outline-warning'" 
+                  @click="activeModalTab = 'unmatched'"
+                >
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i> Skipped / Missing BINs ({{ unmatchedList.length }})
+                </button>
+              </div>
+            </div>
             <button type="button" class="btn-close btn-close-white" @click="closeModal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
             <!-- Filtered BIN Info Alert -->
-            <div v-if="unmatchedRowsCount > 0" class="alert alert-warning py-2 px-3 mb-3 small d-flex align-items-center">
-              <i class="bi bi-info-circle-fill fs-5 me-2 flex-shrink-0 text-warning"></i>
-              <div>
-                আপলোডকৃত ফাইলের <strong>{{ unmatchedRowsCount }}টি রিটার্ন ({{ unmatchedBinsCount }}টি অনিবন্ধিত বিন)</strong> ফিল্টার করে বাদ দেওয়া হয়েছে, কারণ এগুলো মাস্টার বিন ডেটাতে নিবন্ধিত নেই। 
-                মাস্টার ডেটার সাথে ম্যাচ হওয়া <strong>{{ parsedData.length }}টি রিটার্ন</strong> প্রিভিউতে প্রদর্শিত হচ্ছে যা ডাটাবেজে সংরক্ষণ করা যাবে।
+            <div v-if="unmatchedRowsCount > 0" class="alert alert-warning py-2 px-3 mb-3 small d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <div class="d-flex align-items-center">
+                <i class="bi bi-info-circle-fill fs-5 me-2 flex-shrink-0 text-warning"></i>
+                <div>
+                  আপলোডকৃত ফাইলের <strong>{{ unmatchedRowsCount }}টি রিটার্ন ({{ unmatchedBinsCount || uniqueUnmatchedBinsCount }}টি অনিবন্ধিত বিন)</strong> ফিল্টার করে বাদ দেওয়া হয়েছে, কারণ এগুলো মাস্টার বিন ডেটাতে নিবন্ধিত নেই।
+                </div>
+              </div>
+              <div class="d-flex gap-2">
+                <button 
+                  type="button" 
+                  class="btn btn-sm" 
+                  :class="activeModalTab === 'unmatched' ? 'btn-dark text-warning' : 'btn-outline-dark'" 
+                  @click="activeModalTab = activeModalTab === 'unmatched' ? 'matched' : 'unmatched'"
+                >
+                  <i class="bi bi-list-ul me-1"></i> {{ activeModalTab === 'unmatched' ? 'ম্যাচ হওয়া রিটার্ন দেখুন' : 'বাদ পড়া তালিকা দেখুন' }}
+                </button>
+                <button 
+                  type="button" 
+                  class="btn btn-sm btn-dark text-warning d-flex align-items-center shadow-sm" 
+                  @click="downloadUnmatchedCsv"
+                  title="Download Skipped BINs as CSV"
+                >
+                  <i class="bi bi-download me-1"></i> ডাউনলোড তালিকা
+                </button>
               </div>
             </div>
 
-            <div class="table-responsive">
-              <table class="table  table-striped table-bordered text-nowrap" style="font-size: 0.85rem;">
+            <!-- Tab 1: Matched Returns Table -->
+            <div v-if="activeModalTab === 'matched'" class="table-responsive">
+              <table class="table table-striped table-bordered text-nowrap" style="font-size: 0.85rem;">
                 <thead>
                   <tr>
                     <th v-for="col in dbColumnsList" :key="col.key">{{ col.label }}</th>
@@ -134,16 +176,109 @@
                 </tbody>
               </table>
             </div>
+
+            <!-- Tab 2: Skipped / Unmatched Returns Table -->
+            <div v-else-if="activeModalTab === 'unmatched'">
+              <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-warning text-dark fs-6">{{ unmatchedList.length }} Skipped Records</span>
+                  <span class="badge bg-secondary fs-6">{{ uniqueUnmatchedBinsCount }} Unique Unregistered BINs</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <input 
+                    type="text" 
+                    v-model="unmatchedSearchQuery" 
+                    class="form-control form-control-sm bg-dark text-light border-secondary" 
+                    placeholder="Search skipped BIN, name, circle..." 
+                    style="width: 250px;"
+                  />
+                  <button 
+                    type="button" 
+                    class="btn btn-warning btn-sm text-dark fw-bold d-flex align-items-center shadow-sm text-nowrap" 
+                    @click="downloadUnmatchedCsv"
+                  >
+                    <i class="bi bi-download me-1"></i> Download Skipped BINs (.csv)
+                  </button>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-dark table-striped table-bordered text-nowrap align-middle" style="font-size: 0.85rem;">
+                  <thead class="table-dark">
+                    <tr class="text-center">
+                      <th style="width: 50px;">#</th>
+                      <th class="text-start ps-3">BIN</th>
+                      <th class="text-start ps-3">Entity / Taxpayer Name</th>
+                      <th>Submission ID</th>
+                      <th>Tax Period</th>
+                      <th>Circle</th>
+                      <th>Division</th>
+                      <th>Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="paginatedUnmatchedList.length === 0">
+                      <td colspan="8" class="text-center py-4 text-muted">No skipped records found matching your search.</td>
+                    </tr>
+                    <tr v-for="(row, idx) in paginatedUnmatchedList" :key="idx" class="text-center">
+                      <td class="text-muted">{{ (unmatchedCurrentPage - 1) * unmatchedPageSize + idx + 1 }}</td>
+                      <td class="text-start ps-3 font-monospace text-warning fw-bold">{{ row.bin }}</td>
+                      <td class="text-start ps-3 text-light">{{ row.name || '-' }}</td>
+                      <td class="font-monospace text-muted">{{ row.submissionId || '-' }}</td>
+                      <td><span class="badge bg-secondary">{{ row.taxPeriod || '-' }}</span></td>
+                      <td>{{ row.circle || '-' }}</td>
+                      <td>{{ row.division || '-' }}</td>
+                      <td>
+                        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger">
+                          <i class="bi bi-x-circle me-1"></i>{{ row.reason }}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Pagination -->
+              <div v-if="unmatchedTotalPages > 1" class="d-flex justify-content-between align-items-center mt-3">
+                <div class="text-muted small">
+                  Showing {{ (unmatchedCurrentPage - 1) * unmatchedPageSize + 1 }} to {{ Math.min(unmatchedCurrentPage * unmatchedPageSize, filteredUnmatchedList.length) }} of {{ filteredUnmatchedList.length }} entries
+                </div>
+                <ul class="pagination pagination-sm mb-0">
+                  <li class="page-item" :class="{ disabled: unmatchedCurrentPage === 1 }">
+                    <button class="page-link bg-dark text-light border-secondary" @click="unmatchedCurrentPage--">Prev</button>
+                  </li>
+                  <li class="page-item disabled">
+                    <span class="page-link bg-dark text-light border-secondary">Page {{ unmatchedCurrentPage }} of {{ unmatchedTotalPages }}</span>
+                  </li>
+                  <li class="page-item" :class="{ disabled: unmatchedCurrentPage === unmatchedTotalPages }">
+                    <button class="page-link bg-dark text-light border-secondary" @click="unmatchedCurrentPage++">Next</button>
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
           <div class="modal-footer border-custom justify-content-between">
             <div class="text-muted small">
-              <i class="bi bi-info-circle me-1"></i> Data will be validated during saving.
+              <span v-if="activeModalTab === 'matched'">
+                <i class="bi bi-info-circle me-1"></i> Data will be validated during saving.
+              </span>
+              <span v-else class="text-warning">
+                <i class="bi bi-exclamation-triangle me-1"></i> These returns cannot be saved because their BINs are not in the master database.
+              </span>
             </div>
-            <div>
-              <button type="button" class="btn btn-secondary me-2" @click="closeModal" :disabled="saving">Cancel</button>
+            <div class="d-flex gap-2">
+              <button 
+                v-if="unmatchedList.length > 0"
+                type="button" 
+                class="btn btn-outline-warning btn-sm" 
+                @click="downloadUnmatchedCsv"
+              >
+                <i class="bi bi-download me-1"></i> Download Skipped List
+              </button>
+              <button type="button" class="btn btn-secondary" @click="closeModal" :disabled="saving">Cancel</button>
               <button type="button" class="btn btn-success" @click="saveToDatabase" :disabled="saving || parsedData.length === 0">
                 <span v-if="saving" class="spinner-border spinner-border-sm me-2"></span>
-                Save to Database
+                Save Matched Data ({{ parsedData.length }})
               </button>
             </div>
           </div>
@@ -220,6 +355,80 @@ const saveProgress = ref(0);
 const totalSaved = ref(0);
 const currentChunkIndex = ref(0);
 
+// --- Skipped / Unmatched Data State ---
+const unmatchedList = ref<any[]>([]);
+const activeModalTab = ref<'matched' | 'unmatched'>('matched');
+const unmatchedSearchQuery = ref('');
+const unmatchedCurrentPage = ref(1);
+const unmatchedPageSize = ref(15);
+
+const filteredUnmatchedList = computed(() => {
+  if (!unmatchedSearchQuery.value.trim()) return unmatchedList.value;
+  const q = unmatchedSearchQuery.value.toLowerCase().trim();
+  return unmatchedList.value.filter((r) => 
+    String(r.bin || '').toLowerCase().includes(q) ||
+    String(r.name || '').toLowerCase().includes(q) ||
+    String(r.circle || '').toLowerCase().includes(q) ||
+    String(r.division || '').toLowerCase().includes(q) ||
+    String(r.submissionId || '').toLowerCase().includes(q)
+  );
+});
+
+const paginatedUnmatchedList = computed(() => {
+  const start = (unmatchedCurrentPage.value - 1) * unmatchedPageSize.value;
+  return filteredUnmatchedList.value.slice(start, start + unmatchedPageSize.value);
+});
+
+const unmatchedTotalPages = computed(() => {
+  return Math.ceil(filteredUnmatchedList.value.length / unmatchedPageSize.value) || 1;
+});
+
+const uniqueUnmatchedBinsCount = computed(() => {
+  return new Set(unmatchedList.value.map(r => r.bin).filter(b => b && b !== 'N/A')).size;
+});
+
+const downloadUnmatchedCsv = () => {
+  if (unmatchedList.value.length === 0) return;
+
+  const headers = [
+    "SL",
+    "BIN",
+    "Entity Name",
+    "Tax Period",
+    "Submission ID",
+    "Circle",
+    "Division",
+    "Skip Reason"
+  ];
+
+  const csvRows = unmatchedList.value.map((r, idx) => {
+    const escape = (val: any) => `"${String(val || '').replace(/"/g, '""')}"`;
+    const binFormatted = `"=""${r.bin || ''}"""`;
+    return [
+      idx + 1,
+      binFormatted,
+      escape(r.name || '-'),
+      escape(r.taxPeriod || '-'),
+      escape(r.submissionId || '-'),
+      escape(r.circle || '-'),
+      escape(r.division || '-'),
+      escape(r.reason || 'BIN not in Master Database')
+    ].join(",");
+  });
+
+  const csvContent = [headers.join(","), ...csvRows].join("\n");
+  const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  const dateStr = new Date().toISOString().split("T")[0];
+  link.setAttribute("download", `Skipped_Unmatched_BINs_${dateStr}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
 // --- Missing Data State ---
 const missingDivisions = ref<string[]>([]);
 const missingCircles = ref<{name: string, division: string}[]>([]);
@@ -258,7 +467,11 @@ const handleFileUpload = async (event: Event) => {
       parsedData.value = response.data || [];
       unmatchedRowsCount.value = response.unmatchedRows || 0;
       unmatchedBinsCount.value = response.unmatchedBins || 0;
+      unmatchedList.value = response.unmatchedList || [];
       totalFileRows.value = response.totalRows || (parsedData.value.length + unmatchedRowsCount.value);
+      activeModalTab.value = parsedData.value.length > 0 ? 'matched' : 'unmatched';
+      unmatchedCurrentPage.value = 1;
+      unmatchedSearchQuery.value = '';
       if (previewModalInst) {
         previewModalInst.show();
       }
@@ -266,7 +479,20 @@ const handleFileUpload = async (event: Event) => {
 
   } catch (error: any) {
     console.error('File Upload Error:', error);
-    const errorMsg = error.response?.data?.error || error.message || 'Failed to upload or parse the file.';
+    const errData = error.response?.data;
+    if (errData?.unmatchedList && errData.unmatchedList.length > 0) {
+      parsedData.value = [];
+      unmatchedList.value = errData.unmatchedList;
+      unmatchedRowsCount.value = errData.unmatchedRows || errData.unmatchedList.length;
+      unmatchedBinsCount.value = errData.unmatchedBins || 0;
+      activeModalTab.value = 'unmatched';
+      unmatchedCurrentPage.value = 1;
+      unmatchedSearchQuery.value = '';
+      if (previewModalInst) {
+        previewModalInst.show();
+      }
+    }
+    const errorMsg = errData?.error || error.message || 'Failed to upload or parse the file.';
     showToast(errorMsg, 'danger');
   } finally {
     setTimeout(() => {
