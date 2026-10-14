@@ -5,7 +5,7 @@
     <div class="card bg-dark border-secondary mb-4 shadow-sm d-print-none">
       <div class="card-body p-3 d-flex align-items-center gap-3 flex-wrap">
         
-        <button v-if="route.query.fromList" class="btn btn-outline-secondary text-light px-3 shadow-sm" @click="router.push({ name: 'return-non-filer-list' })" title="Back to List">
+        <button v-if="route.query.fromList" class="btn btn-outline-secondary text-light px-3 shadow-sm" @click="handleBack" title="Back to List">
           <i class="bi bi-arrow-left me-1"></i> Back
         </button>
 
@@ -178,6 +178,14 @@ import axios from '@/plugins/axios';
 
 const route = useRoute();
 const router = useRouter();
+
+const handleBack = () => {
+  if (window.history.length > 1) {
+    router.back();
+  } else {
+    router.push({ name: 'return-non-filer-list' });
+  }
+};
 const reports = ref<any[]>([]);
 const loading = ref(false);
 const searchQuery = ref('');

@@ -174,8 +174,52 @@
       <p class="text-muted mt-3 mb-0">Select your desired filters and click the View button (<i class="bi bi-eye text-primary"></i>) to generate the Non-Filer List.</p>
     </div>
 
-    <!-- Data Table Card (Only rendered after clicking View button) -->
-    <div v-else class="card bg-dark border-secondary shadow-sm flex-grow-1 overflow-hidden d-flex flex-column">
+    <!-- Results View: Rendered after clicking View button -->
+    <template v-else-if="hasLoaded">
+      <!-- Summary Breakdown Card (English, Above Non-Filer Table) -->
+      <div v-if="summaryData.length > 0" class="card bg-dark border-secondary shadow-sm mb-4">
+        <div class="card-header border-secondary d-flex justify-content-between align-items-center py-2 bg-dark">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-bar-chart-steps text-info"></i>
+            <span class="fw-bold text-light">Non-Filer Status Breakdown</span>
+            <span class="badge bg-secondary text-light ms-1">{{ summaryData.length }} {{ summaryData.length === 1 ? 'Month' : 'Months' }}</span>
+          </div>
+        </div>
+        <div class="card-body p-0 table-responsive" style="max-height: 280px;">
+          <table class="table table-dark table-bordered align-middle mb-0 custom-summary-table">
+            <thead class="table-dark sticky-top text-nowrap">
+              <tr class="text-center">
+                <th class="text-start ps-3" style="min-width: 160px;">Issue Month</th>
+                <th style="min-width: 140px;">Active BINs</th>
+                <th style="min-width: 170px;" class="text-success">Returns Filed (Filer)</th>
+                <th style="min-width: 190px;" class="text-warning">Never Filed (Non-Filer)</th>
+                <th style="min-width: 140px;" class="text-danger">Non-Filer Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in summaryData" :key="item.monthKey" class="text-center">
+                <td class="text-start ps-3 fw-bold text-light">{{ item.month }}</td>
+                <td class="font-monospace text-light">{{ item.activeBins.toLocaleString() }}</td>
+                <td class="font-monospace text-success fw-bold">{{ item.filers.toLocaleString() }}</td>
+                <td class="font-monospace text-warning fw-bold">{{ item.nonFilers.toLocaleString() }}</td>
+                <td class="font-monospace text-danger fw-bold">{{ item.nonFilerRate }}</td>
+              </tr>
+            </tbody>
+            <tfoot v-if="totalSummaryData" class="table-dark sticky-bottom border-top border-secondary">
+              <tr class="text-center fw-bold bg-secondary bg-opacity-25">
+                <td class="text-start ps-3 text-info fw-bold">{{ totalSummaryData.month }}</td>
+                <td class="font-monospace text-light fw-bold">{{ totalSummaryData.activeBins.toLocaleString() }}</td>
+                <td class="font-monospace text-success fw-bold">{{ totalSummaryData.filers.toLocaleString() }}</td>
+                <td class="font-monospace text-warning fw-bold">{{ totalSummaryData.nonFilers.toLocaleString() }}</td>
+                <td class="font-monospace text-danger fw-bold">{{ totalSummaryData.nonFilerRate }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Data Table Card -->
+      <div class="card bg-dark border-secondary shadow-sm flex-grow-1 overflow-hidden d-flex flex-column">
       <div class="card-header border-secondary d-flex justify-content-between align-items-center py-3 flex-wrap gap-2 d-print-none">
         <div class="d-flex align-items-center">
           <h5 class="mb-0 fw-bold text-light me-3">Non Filer List</h5>
@@ -267,7 +311,8 @@
         </ul>
       </div>
     </div>
-  </div>
+  </template>
+</div>
 </template>
 
 <script setup lang="ts">
@@ -279,25 +324,41 @@ import SearchInput from "@/components/common/SearchInput.vue";
 
 const router = useRouter();
 
+const NON_FILER_STATE_KEY = "analyser_non_filer_state";
+
+const getStoredState = () => {
+  try {
+    const raw = sessionStorage.getItem(NON_FILER_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const savedState = getStoredState();
+const isInitialMount = ref(true);
+
 const loading = ref(false);
-const hasLoaded = ref(false);
-const listData = ref<any[]>([]);
-const searchQuery = ref("");
-const currentPage = ref(1);
+const hasLoaded = ref(savedState?.hasLoaded || false);
+const listData = ref<any[]>(savedState?.listData || []);
+const summaryData = ref<any[]>(savedState?.summaryData || []);
+const totalSummaryData = ref<any>(savedState?.totalSummaryData || null);
+const searchQuery = ref(savedState?.searchQuery || "");
+const currentPage = ref(savedState?.currentPage || 1);
 const pageSize = ref(10);
 
-// Filter selections
-const fromIssueDate = ref("");
-const toIssueDate = ref("");
-const fromTaxPeriod = ref("");
-const toTaxPeriod = ref("");
-const selectedCircle = ref<string[]>([]);
-const selectedPoliceStation = ref<string[]>([]);
-const selectedStatus = ref<string[]>([]);
-const selectedForced = ref<string[]>([]);
-const selectedMajorArea = ref<string[]>([]);
-const selectedMfgArea = ref<string[]>([]);
-const selectedServiceArea = ref<string[]>([]);
+// Filter selections (restored from saved session if available)
+const fromIssueDate = ref(savedState?.fromIssueDate || "");
+const toIssueDate = ref(savedState?.toIssueDate || "");
+const fromTaxPeriod = ref(savedState?.fromTaxPeriod || "");
+const toTaxPeriod = ref(savedState?.toTaxPeriod || "");
+const selectedCircle = ref<string[]>(savedState?.selectedCircle || []);
+const selectedPoliceStation = ref<string[]>(savedState?.selectedPoliceStation || []);
+const selectedStatus = ref<string[]>(savedState?.selectedStatus || []);
+const selectedForced = ref<string[]>(savedState?.selectedForced || []);
+const selectedMajorArea = ref<string[]>(savedState?.selectedMajorArea || []);
+const selectedMfgArea = ref<string[]>(savedState?.selectedMfgArea || []);
+const selectedServiceArea = ref<string[]>(savedState?.selectedServiceArea || []);
 
 // Filter options
 const uniqueCircles = ref<string[]>([]);
@@ -389,8 +450,15 @@ watch(
     selectedServiceArea
   ],
   () => {
-    hasLoaded.value = false;
-    listData.value = [];
+    if (!isInitialMount.value) {
+      hasLoaded.value = false;
+      listData.value = [];
+      summaryData.value = [];
+      totalSummaryData.value = null;
+      try {
+        sessionStorage.removeItem(NON_FILER_STATE_KEY);
+      } catch (e) {}
+    }
   },
   { deep: true }
 );
@@ -467,6 +535,33 @@ const fetchFilterOptions = async () => {
   }
 };
 
+const saveStateToStorage = () => {
+  try {
+    const state = {
+      fromIssueDate: fromIssueDate.value,
+      toIssueDate: toIssueDate.value,
+      fromTaxPeriod: fromTaxPeriod.value,
+      toTaxPeriod: toTaxPeriod.value,
+      selectedCircle: selectedCircle.value,
+      selectedPoliceStation: selectedPoliceStation.value,
+      selectedStatus: selectedStatus.value,
+      selectedForced: selectedForced.value,
+      selectedMajorArea: selectedMajorArea.value,
+      selectedMfgArea: selectedMfgArea.value,
+      selectedServiceArea: selectedServiceArea.value,
+      searchQuery: searchQuery.value,
+      currentPage: currentPage.value,
+      hasLoaded: hasLoaded.value,
+      listData: listData.value,
+      summaryData: summaryData.value,
+      totalSummaryData: totalSummaryData.value
+    };
+    sessionStorage.setItem(NON_FILER_STATE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.error("Failed to save state to sessionStorage", e);
+  }
+};
+
 const fetchNonFilerList = async () => {
   loading.value = true;
   currentPage.value = 1;
@@ -486,10 +581,15 @@ const fetchNonFilerList = async () => {
 
     const res = await axios.get(`/api/return-data-analyser/non-filer-list?${params.toString()}`);
     listData.value = res.data?.data || res.data || [];
+    summaryData.value = res.data?.summary || [];
+    totalSummaryData.value = res.data?.totalSummary || null;
     hasLoaded.value = true;
+    saveStateToStorage();
   } catch (error) {
     console.error("Failed to load non filer list", error);
     listData.value = [];
+    summaryData.value = [];
+    totalSummaryData.value = null;
     hasLoaded.value = true;
   } finally {
     loading.value = false;
@@ -510,7 +610,12 @@ const resetFilters = () => {
   selectedServiceArea.value = [];
   searchQuery.value = "";
   listData.value = [];
+  summaryData.value = [];
+  totalSummaryData.value = null;
   hasLoaded.value = false;
+  try {
+    sessionStorage.removeItem(NON_FILER_STATE_KEY);
+  } catch (e) {}
 };
 
 const viewPenaltyReport = (bin: string) => {
@@ -578,10 +683,33 @@ const downloadExcel = () => {
 
 onMounted(async () => {
   await fetchFilterOptions();
+  setTimeout(() => {
+    isInitialMount.value = false;
+  }, 100);
 });
 </script>
 
 <style scoped>
+/* Summary Table Styling */
+.custom-summary-table th {
+  background-color: #1a1e21 !important;
+  color: #adb5bd;
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-color: #373b3e;
+}
+.custom-summary-table td {
+  border-color: #2c3034;
+  font-size: 0.9rem;
+}
+.custom-summary-table tfoot td {
+  background-color: #212529 !important;
+  border-top: 2px solid #495057 !important;
+  font-size: 0.92rem;
+}
+
 .custom-table th,
 .custom-table td {
   vertical-align: middle;

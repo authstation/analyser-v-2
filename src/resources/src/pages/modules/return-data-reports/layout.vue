@@ -20,8 +20,12 @@
           <div style="min-width: 200px;"></div>
         </div>
 
-        <!-- Render Specific Report Content -->
-        <router-view />
+        <!-- Render Specific Report Content with KeepAlive -->
+        <router-view v-slot="{ Component }">
+          <keep-alive>
+            <component :is="Component" />
+          </keep-alive>
+        </router-view>
       </div>
     </main>
   </div>

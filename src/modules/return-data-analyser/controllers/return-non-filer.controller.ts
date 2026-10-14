@@ -152,10 +152,10 @@ export const nonFilerList: Handler = async (c: any) => {
       .leftJoin(circles, eq(binData.circleId, circles.id))
       .leftJoin(policeStations, eq(binData.policeStationId, policeStations.id))
       .where(whereClause)
-      .limit(5000);
+      .limit(50000);
 
     if (entities.length === 0) {
-      return c.json({ data: [], total: 0 });
+      return c.json({ data: [], total: 0, summary: [], totalSummary: null });
     }
 
     // 3. Count returns submitted for each entity
@@ -253,7 +253,94 @@ export const nonFilerList: Handler = async (c: any) => {
     // Sort descending by unfiled months
     results.sort((a, b) => b.grandTotalMonths - a.grandTotalMonths);
 
-    return c.json({ data: results, total: results.length });
+    // 5. Generate Monthly Breakdown Summary (Active BINs, Filers, Non-Filers, Rate)
+    const monthMap = new Map<string, {
+      monthKey: string;
+      monthLabel: string;
+      activeBins: number;
+      filers: number;
+      nonFilers: number;
+    }>();
+
+    let totalActiveBins = 0;
+    let totalFilers = 0;
+    let totalNonFilers = 0;
+
+    for (const ent of entities) {
+      if (!ent.bin) continue;
+
+      let mKey = "Unknown";
+      let mLabel = "Unknown Period";
+      if (ent.binIssueDate) {
+        const d = new Date(ent.binIssueDate);
+        if (!isNaN(d.getTime())) {
+          const yr = d.getFullYear();
+          const mo = String(d.getMonth() + 1).padStart(2, "0");
+          mKey = `${yr}-${mo}`;
+          const monthName = d.toLocaleString("en-US", { month: "long" });
+          mLabel = `${monthName} ${yr}`;
+        }
+      }
+
+      if (!monthMap.has(mKey)) {
+        monthMap.set(mKey, {
+          monthKey: mKey,
+          monthLabel: mLabel,
+          activeBins: 0,
+          filers: 0,
+          nonFilers: 0
+        });
+      }
+
+      const m = monthMap.get(mKey)!;
+      const isActive = ent.binStatus === "Active";
+      const countThis = isActive || (filterStatus && filterStatus !== "All");
+
+      if (countThis) {
+        m.activeBins++;
+        totalActiveBins++;
+
+        const submitted = submissionMap.get(ent.bin) || 0;
+        if (submitted > 0) {
+          m.filers++;
+          totalFilers++;
+        } else {
+          m.nonFilers++;
+          totalNonFilers++;
+        }
+      }
+    }
+
+    const summaryList = Array.from(monthMap.values())
+      .filter((m) => m.monthKey !== "Unknown")
+      .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+      .map((m) => {
+        const rate = m.activeBins > 0 ? ((m.nonFilers / m.activeBins) * 100).toFixed(2) + "%" : "0.00%";
+        return {
+          month: m.monthLabel,
+          monthKey: m.monthKey,
+          activeBins: m.activeBins,
+          filers: m.filers,
+          nonFilers: m.nonFilers,
+          nonFilerRate: rate
+        };
+      });
+
+    const totalRate = totalActiveBins > 0 ? ((totalNonFilers / totalActiveBins) * 100).toFixed(2) + "%" : "0.00%";
+    const totalSummary = {
+      month: "Total",
+      activeBins: totalActiveBins,
+      filers: totalFilers,
+      nonFilers: totalNonFilers,
+      nonFilerRate: totalRate
+    };
+
+    return c.json({
+      data: results,
+      total: results.length,
+      summary: summaryList,
+      totalSummary
+    });
   } catch (error) {
     console.error("Non Filer List Error:", error);
     return c.json({ error: "Failed to fetch non filer list" }, 500);
