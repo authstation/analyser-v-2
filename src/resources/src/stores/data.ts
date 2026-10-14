@@ -17,6 +17,10 @@ export const useDataStore = defineStore('data', {
     availablePoliceStations: [] as string[],
     availableStatuses: [] as string[],
     availableForcedRegistrations: [] as string[],
+    availableMajorAreas: [] as string[],
+    availableMfgAreas: [] as string[],
+    availableServiceAreas: [] as string[],
+    areaRelations: [] as any[],
     availableYears: [] as string[],
     loading: false,
     filtersLoaded: false
@@ -37,8 +41,27 @@ export const useDataStore = defineStore('data', {
           this.availablePoliceStations = res.data.policeStations || [];
           this.availableStatuses = res.data.statuses || [];
           this.availableForcedRegistrations = res.data.forcedRegistrations || [];
+          this.availableMajorAreas = res.data.majorAreas || [];
+          this.availableMfgAreas = res.data.mfgAreas || [];
+          this.availableServiceAreas = res.data.serviceAreas || [];
+          this.areaRelations = res.data.areaRelations || [];
           this.availableYears = res.data.years || [];
           this.filtersLoaded = true;
+        }
+
+        if (!this.availableMajorAreas || this.availableMajorAreas.length === 0) {
+          try {
+            const optRes = await axios.get('/api/return-data-analyser/filter-options');
+            if (optRes.data) {
+              const d = optRes.data.data || optRes.data;
+              if (d.majorAreas && d.majorAreas.length > 0) this.availableMajorAreas = d.majorAreas;
+              if (d.mfgAreas && d.mfgAreas.length > 0) this.availableMfgAreas = d.mfgAreas;
+              if (d.serviceAreas && d.serviceAreas.length > 0) this.availableServiceAreas = d.serviceAreas;
+              if (d.areaRelations && d.areaRelations.length > 0) this.areaRelations = d.areaRelations;
+            }
+          } catch (e) {
+            // ignore
+          }
         }
       } catch (error) {
         console.error('Failed to fetch filters', error);
@@ -55,14 +78,19 @@ export const useDataStore = defineStore('data', {
 
         if (filters.status && filters.status !== 'All') queryParams.append('status', filters.status);
         if (filters.forcedRegistration && filters.forcedRegistration !== 'All') queryParams.append('forcedRegistration', filters.forcedRegistration);
+        if (filters.reg && filters.reg !== 'All') queryParams.append('reg', filters.reg);
         if (filters.majorArea && filters.majorArea !== 'All') queryParams.append('majorArea', filters.majorArea);
         if (filters.manufacturingArea && filters.manufacturingArea !== 'All') queryParams.append('manufacturingArea', filters.manufacturingArea);
         if (filters.serviceArea && filters.serviceArea !== 'All') queryParams.append('serviceArea', filters.serviceArea);
         if (filters.circle && filters.circle !== 'All') queryParams.append('circle', filters.circle);
         if (filters.year && filters.year !== 'All') queryParams.append('year', filters.year);
+        if (filters.fromDate) queryParams.append('fromDate', filters.fromDate);
+        if (filters.toDate) queryParams.append('toDate', filters.toDate);
+        if (filters.fromIssueDate) queryParams.append('fromIssueDate', filters.fromIssueDate);
+        if (filters.toIssueDate) queryParams.append('toIssueDate', filters.toIssueDate);
         if (filters.q) queryParams.append('q', filters.q);
         if (filters.policeStations && filters.policeStations.length > 0) {
-          queryParams.append('policeStations', filters.policeStations.join(','));
+          queryParams.append('policeStations', Array.isArray(filters.policeStations) ? filters.policeStations.join(',') : filters.policeStations);
         }
 
         const res = await axios.get(`${API_BASE}/list?${queryParams.toString()}`);

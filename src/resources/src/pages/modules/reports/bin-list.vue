@@ -1,44 +1,179 @@
 <template>
   <div>
-    <!-- Management Action Bar -->
+    <!-- Management Action Bar / Filters -->
     <div class="card bg-surface border-custom mb-4 shadow-sm" v-if="!isReadonly">
-      <div class="card-body d-flex flex-wrap align-items-center gap-3 p-3">
-        <div style="flex: 1; min-width: 200px;">
-          <MultiSelectDropdown
-            v-model="selectedCircles"
-            :options="dataStore.availableCircles"
-            all-label="All Circles"
-            placeholder="All Circles"
-            id-prefix="binlist-circle"
-          />
+      <div class="card-body p-3">
+        <!-- ROW 1: ISSUE FROM DATE, ISSUE TO DATE (CENTERED) -->
+        <div class="row g-3 justify-content-center align-items-end">
+          <div class="col-12 col-sm-6 col-md-3">
+            <label class="form-label small text-muted mb-1 d-block">Issue From Date</label>
+            <input
+              type="date"
+              class="form-control bg-dark text-light border-secondary shadow-none"
+              style="height: 38px; color-scheme: dark; background-color: #2b3035 !important; border-color: #495057;"
+              v-model="fromIssueDate"
+            />
+          </div>
+
+          <div class="col-12 col-sm-6 col-md-3">
+            <label class="form-label small text-muted mb-1 d-block">Issue To Date</label>
+            <input
+              type="date"
+              class="form-control bg-dark text-light border-secondary shadow-none"
+              style="height: 38px; color-scheme: dark; background-color: #2b3035 !important; border-color: #495057;"
+              v-model="toIssueDate"
+              :min="fromIssueDate || undefined"
+            />
+          </div>
         </div>
 
-        <div style="flex: 1; min-width: 200px;">
-          <MultiSelectDropdown
-            v-model="selectedPoliceStations"
-            :options="dataStore.availablePoliceStations"
-            all-label="All Police Stations"
-            placeholder="All Police Stations"
-            id-prefix="binlist-ps"
-          />
+        <!-- DIVIDER LINE -->
+        <hr class="my-3 border-secondary" style="opacity: 0.35;" />
+
+        <!-- ROW 2: ALL CIRCLES, ALL PS, ALL STATUSES, ALL REG. TYPES -->
+        <div class="row g-3 align-items-end mb-2">
+          <div class="col-12 col-md-3">
+            <MultiSelectDropdown
+              v-model="selectedCircles"
+              :options="dataStore.availableCircles"
+              placeholder="All Circles"
+              all-label="All Circles"
+              id-prefix="binlist-circle"
+              size="md"
+            />
+          </div>
+
+          <div class="col-12 col-md-3">
+            <MultiSelectDropdown
+              v-model="selectedPoliceStations"
+              :options="dataStore.availablePoliceStations"
+              placeholder="All PS"
+              all-label="All PS"
+              id-prefix="binlist-ps"
+              size="md"
+            />
+          </div>
+
+          <div class="col-12 col-md-3">
+            <MultiSelectDropdown
+              v-model="selectedStatuses"
+              :options="statusOptions"
+              placeholder="All Statuses"
+              all-label="All Statuses"
+              id-prefix="binlist-status"
+              size="md"
+              :searchable="false"
+            />
+          </div>
+
+          <div class="col-12 col-md-3">
+            <MultiSelectDropdown
+              v-model="selectedForced"
+              :options="regTypeOptions"
+              placeholder="All Reg. Types"
+              all-label="All Reg. Types"
+              id-prefix="binlist-reg"
+              size="md"
+              :searchable="false"
+            />
+          </div>
         </div>
 
-        <div class="d-flex align-items-center gap-2">
-          <button class="btn btn-sm btn-success d-flex align-items-center shadow-sm" @click="downloadExcel" :disabled="isExporting || dataStore.meta.total === 0" style="height: 31px;">
-            <span v-if="isExporting" class="spinner-border spinner-border-sm me-1"></span>
-            <i v-else class="bi bi-file-earmark-excel-fill me-1"></i> Excel
-          </button>
-          <button class="btn btn-sm btn-danger d-flex align-items-center shadow-sm" @click="confirmDelete" :disabled="isDeleting || dataStore.meta.total === 0 || selectedCircles.length > 1" style="height: 31px;">
-            <span v-if="isDeleting" class="spinner-border spinner-border-sm me-1"></span>
-            <i v-else class="bi bi-trash-fill me-1"></i>
-            Delete {{ selectedCircles.length === 1 ? 'Circle' : 'All' }} Data
-          </button>
+        <!-- ROW 3: ALL MAJOR AREAS, ALL MFG AREAS, ALL SERVICE AREAS, ACTIONS -->
+        <div class="row g-3 align-items-end">
+          <div class="col-12 col-md-3">
+            <MultiSelectDropdown
+              v-model="selectedMajorArea"
+              :options="uniqueMajorAreas"
+              placeholder="All Major Areas"
+              all-label="All Major Areas"
+              id-prefix="binlist-major"
+              size="md"
+            />
+          </div>
+
+          <div class="col-12 col-md-3">
+            <MultiSelectDropdown
+              v-model="selectedMfgArea"
+              :options="uniqueMfgAreas"
+              placeholder="All Mfg Areas"
+              all-label="All Mfg Areas"
+              id-prefix="binlist-mfg"
+              size="md"
+            />
+          </div>
+
+          <div class="col-12 col-md-3">
+            <MultiSelectDropdown
+              v-model="selectedServiceArea"
+              :options="uniqueServiceAreas"
+              placeholder="All Service Areas"
+              all-label="All Service Areas"
+              id-prefix="binlist-svc"
+              size="md"
+            />
+          </div>
+
+          <div class="col-12 col-md-3 d-flex gap-2 align-items-stretch">
+            <button
+              class="btn btn-outline-secondary text-light shadow-sm flex-fill d-flex align-items-center justify-content-center"
+              style="cursor: pointer; height: 38px; background-color: #212529; border-color: #495057;"
+              @click="resetFilters"
+              :disabled="dataStore.loading"
+              title="Reset Filters"
+            >
+              <i class="bi bi-arrow-counterclockwise fs-5"></i>
+            </button>
+            <button
+              class="btn btn-primary shadow-sm flex-fill d-flex align-items-center justify-content-center"
+              style="cursor: pointer; height: 38px;"
+              @click="triggerView"
+              :disabled="dataStore.loading"
+              title="View List"
+            >
+              <i class="bi bi-eye fs-5"></i>
+            </button>
+            <button
+              class="btn btn-success shadow-sm flex-fill d-flex align-items-center justify-content-center"
+              style="cursor: pointer; height: 38px;"
+              @click="downloadExcel"
+              :disabled="isExporting || (!hasLoaded && !isReadonly) || dataStore.meta.total === 0"
+              title="Download Excel"
+            >
+              <span v-if="isExporting" class="spinner-border spinner-border-sm"></span>
+              <i v-else class="bi bi-download fs-5"></i>
+            </button>
+            <button
+              class="btn btn-danger shadow-sm flex-fill d-flex align-items-center justify-content-center"
+              style="cursor: pointer; height: 38px;"
+              @click="confirmDelete"
+              :disabled="isDeleting || dataStore.meta.total === 0 || selectedCircles.length > 1"
+              :title="selectedCircles.length === 1 ? 'Delete Circle Data' : 'Delete All Data'"
+            >
+              <span v-if="isDeleting" class="spinner-border spinner-border-sm"></span>
+              <i v-else class="bi bi-trash-fill fs-5"></i>
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="dataStore.loading" class="text-center py-5">
+      <div class="spinner-border text-info mb-3" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2 text-muted">Loading BIN records...</p>
+    </div>
+
+    <!-- Empty / Idle State: Placeholder before user clicks View button -->
+    <div v-else-if="!hasLoaded && !isReadonly" class="text-center p-5 border border-secondary rounded flex-grow-1 d-flex flex-column justify-content-center align-items-center mb-4" style="border-style: dashed !important; background-color: rgba(33, 37, 41, 0.4); min-height: 260px;">
+      <i class="bi bi-inbox text-muted" style="font-size: 3rem; opacity: 0.5;"></i>
+      <p class="text-muted mt-3 mb-0">Select your desired filters and click the View button (<i class="bi bi-eye text-primary"></i>) to generate the BIN List.</p>
+    </div>
+
     <!-- Data Table -->
-    <div class="card bg-surface border-custom shadow-sm">
+    <div v-else class="card bg-surface border-custom shadow-sm">
       <div class="card-header border-custom d-flex justify-content-between align-items-center py-3 flex-wrap gap-2">
         <!-- Left Side: Title & Badge -->
         <div class="d-flex align-items-center">
@@ -151,20 +286,85 @@ import MultiSelectDropdown from '@/components/common/MultiSelectDropdown.vue';
 
 const dataStore = useDataStore();
 const route = useRoute();
+const hasLoaded = ref(false);
+const fromIssueDate = ref('');
+const toIssueDate = ref('');
 const selectedCircles = ref<string[]>(route.query.circle ? (route.query.circle as string).split(',') : []);
 const selectedPoliceStations = ref<string[]>(
   route.query.policeStations 
     ? (route.query.policeStations as string).split(',') 
     : (route.query.ps ? (route.query.ps as string).split(',') : [])
 );
+const selectedStatuses = ref<string[]>(route.query.status && route.query.status !== 'All' ? (route.query.status as string).split(',') : []);
+const statusOptions = ref<string[]>(['Active', 'Inactive', 'Suspended', 'Cancelled']);
+const selectedForced = ref<string[]>(route.query.forcedRegistration ? (route.query.forcedRegistration as string).split(',') : []);
+const regTypeOptions = ref<string[]>(['Regular', 'Forced']);
+const selectedMajorArea = ref<string[]>(route.query.majorArea ? (route.query.majorArea as string).split('|||') : []);
+const selectedMfgArea = ref<string[]>(route.query.manufacturingArea ? (route.query.manufacturingArea as string).split('|||') : []);
+const selectedServiceArea = ref<string[]>(route.query.serviceArea ? (route.query.serviceArea as string).split('|||') : []);
+
+const uniqueMajorAreas = computed(() => dataStore.availableMajorAreas || []);
+const uniqueMfgAreasBase = computed(() => dataStore.availableMfgAreas || []);
+const uniqueServiceAreasBase = computed(() => dataStore.availableServiceAreas || []);
+const areaRelations = computed(() => dataStore.areaRelations || []);
+
+const uniqueMfgAreas = computed(() => {
+  if (selectedMajorArea.value.length === 0) {
+    return uniqueMfgAreasBase.value;
+  }
+  const validMfg = new Set<string>();
+  for (const rel of areaRelations.value) {
+    if (!rel.major || !rel.mfg) continue;
+    const majors = rel.major.split(';').map((s: string) => s.trim());
+    if (majors.some((m: string) => selectedMajorArea.value.includes(m))) {
+      rel.mfg
+        .split(';')
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+        .forEach((m: string) => validMfg.add(m));
+    }
+  }
+  return Array.from(validMfg).sort();
+});
+
+const uniqueServiceAreas = computed(() => {
+  if (selectedMajorArea.value.length === 0) {
+    return uniqueServiceAreasBase.value;
+  }
+  const validService = new Set<string>();
+  for (const rel of areaRelations.value) {
+    if (!rel.major || !rel.service) continue;
+    const majors = rel.major.split(';').map((s: string) => s.trim());
+    if (majors.some((m: string) => selectedMajorArea.value.includes(m))) {
+      rel.service
+        .split(';')
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+        .forEach((s: string) => validService.add(s));
+    }
+  }
+  return Array.from(validService).sort();
+});
+
+watch(selectedMajorArea, () => {
+  const validMfg = new Set(uniqueMfgAreas.value);
+  selectedMfgArea.value = selectedMfgArea.value.filter(m => validMfg.has(m));
+
+  const validService = new Set(uniqueServiceAreas.value);
+  selectedServiceArea.value = selectedServiceArea.value.filter(s => validService.has(s));
+}, { deep: true });
+
 const isDeleting = ref(false);
 const isExporting = ref(false);
 const searchQuery = ref('');
 
 const isReadonly = computed(() => route.query.readonly === 'true');
-const hasStatusFilter = computed(() => route.query.status && route.query.status !== 'All');
+const hasStatusFilter = computed(() => selectedStatuses.value.length > 0 || (route.query.status && route.query.status !== 'All'));
 
 const pageTitle = computed(() => {
+  if (selectedStatuses.value.length > 0) {
+    return `${selectedStatuses.value.join(', ')} BIN List`;
+  }
   if (route.query.status && route.query.status !== 'All') {
     return `${route.query.status} BIN List`;
   }
@@ -186,20 +386,44 @@ const closeTab = () => {
   }, 100);
 };
 
+const triggerView = () => {
+  hasLoaded.value = true;
+  currentPage.value = 1;
+  fetchList();
+};
+
+const resetFilters = () => {
+  fromIssueDate.value = '';
+  toIssueDate.value = '';
+  selectedCircles.value = [];
+  selectedPoliceStations.value = [];
+  selectedStatuses.value = [];
+  selectedForced.value = [];
+  selectedMajorArea.value = [];
+  selectedMfgArea.value = [];
+  selectedServiceArea.value = [];
+  searchQuery.value = '';
+  currentPage.value = 1;
+  hasLoaded.value = false;
+  dataStore.parsedData = [];
+  dataStore.meta.total = 0;
+};
+
 const downloadExcel = async () => {
   isExporting.value = true;
   try {
-    
     const filters: any = { ...route.query };
-    if (selectedCircles.value.length > 0) {
-      filters.circle = selectedCircles.value.join(',');
-    }
-    if (selectedPoliceStations.value.length > 0) {
-      filters.policeStations = selectedPoliceStations.value.join(',');
-    }
-    if (searchQuery.value.trim()) {
-      filters.q = searchQuery.value.trim();
-    }
+    if (selectedCircles.value.length > 0) filters.circle = selectedCircles.value.join(',');
+    if (selectedPoliceStations.value.length > 0) filters.policeStations = selectedPoliceStations.value.join(',');
+    if (selectedStatuses.value.length > 0) filters.status = selectedStatuses.value.join(',');
+    if (selectedForced.value.length > 0) filters.forcedRegistration = selectedForced.value.join(',');
+    if (fromIssueDate.value) filters.fromDate = fromIssueDate.value;
+    if (toIssueDate.value) filters.toDate = toIssueDate.value;
+    if (selectedMajorArea.value.length > 0) filters.majorArea = selectedMajorArea.value.join('|||');
+    if (selectedMfgArea.value.length > 0) filters.manufacturingArea = selectedMfgArea.value.join('|||');
+    if (selectedServiceArea.value.length > 0) filters.serviceArea = selectedServiceArea.value.join('|||');
+    if (searchQuery.value.trim()) filters.q = searchQuery.value.trim();
+
     const queryParams = new URLSearchParams();
     for (const key in filters) {
       if (filters[key]) queryParams.append(key, filters[key] as string);
@@ -277,6 +501,41 @@ const fetchList = () => {
   } else {
     delete filters.policeStations;
   }
+  if (selectedStatuses.value.length > 0) {
+    filters.status = selectedStatuses.value.join(',');
+  } else if (!route.query.status) {
+    delete filters.status;
+  }
+  if (selectedForced.value.length > 0) {
+    filters.forcedRegistration = selectedForced.value.join(',');
+  } else if (!route.query.forcedRegistration) {
+    delete filters.forcedRegistration;
+  }
+  if (fromIssueDate.value) {
+    filters.fromDate = fromIssueDate.value;
+  } else {
+    delete filters.fromDate;
+  }
+  if (toIssueDate.value) {
+    filters.toDate = toIssueDate.value;
+  } else {
+    delete filters.toDate;
+  }
+  if (selectedMajorArea.value.length > 0) {
+    filters.majorArea = selectedMajorArea.value.join('|||');
+  } else {
+    delete filters.majorArea;
+  }
+  if (selectedMfgArea.value.length > 0) {
+    filters.manufacturingArea = selectedMfgArea.value.join('|||');
+  } else {
+    delete filters.manufacturingArea;
+  }
+  if (selectedServiceArea.value.length > 0) {
+    filters.serviceArea = selectedServiceArea.value.join('|||');
+  } else {
+    delete filters.serviceArea;
+  }
   if (searchQuery.value.trim()) {
     filters.q = searchQuery.value.trim();
   }
@@ -292,26 +551,53 @@ const changePage = (p: number) => {
   fetchList();
 };
 
+watch(
+  [
+    fromIssueDate,
+    toIssueDate,
+    selectedCircles,
+    selectedPoliceStations,
+    selectedStatuses,
+    selectedForced,
+    selectedMajorArea,
+    selectedMfgArea,
+    selectedServiceArea
+  ],
+  () => {
+    currentPage.value = 1;
+    if (hasLoaded.value) {
+      hasLoaded.value = false;
+      dataStore.parsedData = [];
+      dataStore.meta.total = 0;
+    }
+  },
+  { deep: true }
+);
+
+watch(fromIssueDate, (newVal) => {
+  if (newVal && toIssueDate.value && toIssueDate.value < newVal) {
+    toIssueDate.value = '';
+  }
+});
+
 watch(selectedCircles, (newCircles) => {
   selectedPoliceStations.value = [];
   dataStore.fetchFilters(newCircles.join(','));
-  currentPage.value = 1;
-  fetchList();
-}, { deep: true });
-
-watch(selectedPoliceStations, () => {
-  currentPage.value = 1;
-  fetchList();
 }, { deep: true });
 
 watch(searchQuery, () => {
-  currentPage.value = 1;
-  fetchList();
+  if (hasLoaded.value || isReadonly.value) {
+    currentPage.value = 1;
+    fetchList();
+  }
 });
 
-onMounted(() => {
-  dataStore.fetchFilters(selectedCircles.value.join(','));
-  fetchList();
+onMounted(async () => {
+  await dataStore.fetchFilters(selectedCircles.value.join(','));
+  if (isReadonly.value) {
+    hasLoaded.value = true;
+    fetchList();
+  }
 });
 
 const confirmDelete = async () => {

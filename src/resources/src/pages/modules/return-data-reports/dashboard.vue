@@ -10,50 +10,14 @@
             <label class="form-label text-muted small fw-bold mb-1">
               <i class="bi bi-funnel-fill me-1"></i>Filter by Circle
             </label>
-            <div class="dropdown">
-              <button
-                class="form-control form-control-sm bg-dark text-light border-secondary text-start dropdown-toggle w-100 d-flex justify-content-between align-items-center"
-                type="button"
-                v-bs-dropdown
-                data-bs-toggle="dropdown"
-                data-bs-auto-close="outside"
-                aria-expanded="false"
-              >
-                <span class="text-truncate">{{ filters.circleIds.length > 0 ? filters.circleIds.length + ' Selected' : 'All Circles' }}</span>
-              </button>
-              <div class="dropdown-menu dropdown-menu-dark bg-dark w-100 p-2 border-secondary shadow" @click.stop style="min-width: 250px;">
-                <input
-                  type="text"
-                  class="form-control form-control-sm mb-2 bg-dark text-light border-secondary shadow-none"
-                  placeholder="Type to search..."
-                  v-model="circleFilterText"
-                >
-                <div style="max-height: 200px; overflow-y: auto;">
-                  <div class="form-check mb-1 ms-3">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      id="rad-circle-all"
-                      :checked="filters.circleIds.length === 0"
-                      @change="selectAllCircles"
-                    >
-                    <label class="form-check-label" for="rad-circle-all">All Circles</label>
-                  </div>
-                  <div class="form-check mb-1 ms-3" v-for="c in filteredCircles" :key="c.id">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      :value="c.id"
-                      :id="'rad-circle-' + c.id"
-                      :checked="filters.circleIds.includes(Number(c.id))"
-                      @change="toggleCircle(Number(c.id))"
-                    >
-                    <label class="form-check-label" :for="'rad-circle-' + c.id">{{ c.name }}</label>
-                  </div>
-                  <div v-if="filteredCircles.length === 0" class="text-muted small px-3 py-1">No circles found</div>
-                </div>
-              </div>
-            </div>
+            <MultiSelectDropdown
+              v-model="filters.circleIds"
+              :options="circleOptions"
+              placeholder="All Circles"
+              all-label="All Circles"
+              id-prefix="rad-circle"
+              size="sm"
+            />
           </div>
 
           <!-- Col 2: Police Station -->
@@ -61,49 +25,14 @@
             <label class="form-label text-muted small fw-bold mb-1">
               <i class="bi bi-building me-1"></i>Filter by Police Station
             </label>
-            <div class="dropdown">
-              <button
-                class="form-control form-control-sm bg-dark text-light border-secondary text-start dropdown-toggle w-100 d-flex justify-content-between align-items-center"
-                type="button"
-                v-bs-dropdown
-                data-bs-toggle="dropdown"
-                data-bs-auto-close="outside"
-                aria-expanded="false"
-              >
-                <span class="text-truncate">{{ selectedPsCount > 0 ? selectedPsCount + ' Selected' : 'All Police Stations' }}</span>
-              </button>
-              <div class="dropdown-menu dropdown-menu-dark bg-dark p-2 border-secondary shadow w-100" @click.stop style="min-width: 250px;">
-                <input
-                  type="text"
-                  class="form-control form-control-sm mb-2 bg-dark text-light border-secondary shadow-none"
-                  placeholder="Type to search..."
-                  v-model="psFilterText"
-                >
-                <div style="max-height: 200px; overflow-y: auto;">
-                  <div class="form-check mb-1 ms-3">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      id="rad-ps-all"
-                      :checked="filters.policeStationIds.length === 0"
-                      @change="selectAllPs"
-                    >
-                    <label class="form-check-label" for="rad-ps-all">All Police Stations</label>
-                  </div>
-                  <div class="form-check mb-1 ms-3" v-for="ps in displayedPoliceStations" :key="ps.name">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      :id="'rad-ps-' + ps.name"
-                      :checked="isPsChecked(ps)"
-                      @change="togglePsSelection(ps)"
-                    >
-                    <label class="form-check-label" :for="'rad-ps-' + ps.name">{{ ps.name }}</label>
-                  </div>
-                  <div v-if="displayedPoliceStations.length === 0" class="text-muted small px-3 py-1">No stations found</div>
-                </div>
-              </div>
-            </div>
+            <MultiSelectDropdown
+              v-model="selectedPsNames"
+              :options="psOptions"
+              placeholder="All Police Stations"
+              all-label="All Police Stations"
+              id-prefix="rad-ps"
+              size="sm"
+            />
           </div>
 
           <!-- Col 3: From Date, To Date & Reset Button -->
@@ -145,69 +74,36 @@
         <!-- BOTTOM ROW: AREA FILTERS -->
         <div class="row g-3 align-items-end">
           <div class="col-12 col-md-4">
-            <div class="dropdown">
-              <button class="form-control form-control-sm bg-dark text-light border-secondary text-start dropdown-toggle w-100 d-flex justify-content-between align-items-center" type="button" v-bs-dropdown data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-                <span class="text-truncate">{{ selectedMajorArea.length === 0 ? 'All Major Areas' : selectedMajorArea.length === 1 ? selectedMajorArea[0] : `${selectedMajorArea.length} Major Areas Selected` }}</span>
-              </button>
-              <div class="dropdown-menu dropdown-menu-dark bg-dark w-100 p-2 border-secondary shadow" style="min-width: 250px;">
-                <input type="text" class="form-control form-control-sm mb-2 bg-dark text-light border-secondary shadow-none" placeholder="Search major area..." v-model="majorFilterText">
-                <div style="max-height: 200px; overflow-y: auto;">
-                  <a class="dropdown-item d-flex align-items-center gap-2" href="#" @click.prevent="selectedMajorArea = []">
-                    <input class="form-check-input mt-0" type="checkbox" :checked="selectedMajorArea.length === 0" style="pointer-events: none;">
-                    <span>All Major Areas</span>
-                  </a>
-                  <a class="dropdown-item d-flex align-items-center gap-2" href="#" v-for="act in filteredMajorList" :key="act" @click.prevent="toggleFilter(selectedMajorArea, act)">
-                    <input class="form-check-input mt-0" type="checkbox" :checked="selectedMajorArea.includes(act)" style="pointer-events: none;">
-                    <span>{{ act }}</span>
-                  </a>
-                  <div v-if="filteredMajorList.length === 0" class="text-muted small px-3 py-1">No major areas found</div>
-                </div>
-              </div>
-            </div>
+            <MultiSelectDropdown
+              v-model="selectedMajorArea"
+              :options="uniqueMajorAreas"
+              placeholder="All Major Areas"
+              all-label="All Major Areas"
+              id-prefix="rad-major"
+              size="sm"
+            />
           </div>
 
           <div class="col-12 col-md-4">
-            <div class="dropdown">
-              <button class="form-control form-control-sm bg-dark text-light border-secondary text-start dropdown-toggle w-100 d-flex justify-content-between align-items-center" type="button" v-bs-dropdown data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-                <span class="text-truncate">{{ selectedMfgArea.length === 0 ? 'All Mfg Areas' : selectedMfgArea.length === 1 ? selectedMfgArea[0] : `${selectedMfgArea.length} Mfg Areas Selected` }}</span>
-              </button>
-              <div class="dropdown-menu dropdown-menu-dark bg-dark w-100 p-2 border-secondary shadow" style="min-width: 250px;">
-                <input type="text" class="form-control form-control-sm mb-2 bg-dark text-light border-secondary shadow-none" placeholder="Search mfg area..." v-model="mfgFilterText">
-                <div style="max-height: 200px; overflow-y: auto;">
-                  <a class="dropdown-item d-flex align-items-center gap-2" href="#" @click.prevent="selectedMfgArea = []">
-                    <input class="form-check-input mt-0" type="checkbox" :checked="selectedMfgArea.length === 0" style="pointer-events: none;">
-                    <span>All Mfg Areas</span>
-                  </a>
-                  <a class="dropdown-item d-flex align-items-center gap-2" href="#" v-for="act in filteredMfgList" :key="act" @click.prevent="toggleFilter(selectedMfgArea, act)">
-                    <input class="form-check-input mt-0" type="checkbox" :checked="selectedMfgArea.includes(act)" style="pointer-events: none;">
-                    <span>{{ act }}</span>
-                  </a>
-                  <div v-if="filteredMfgList.length === 0" class="text-muted small px-3 py-1">No mfg areas found</div>
-                </div>
-              </div>
-            </div>
+            <MultiSelectDropdown
+              v-model="selectedMfgArea"
+              :options="uniqueMfgAreas"
+              placeholder="All Mfg Areas"
+              all-label="All Mfg Areas"
+              id-prefix="rad-mfg"
+              size="sm"
+            />
           </div>
 
           <div class="col-12 col-md-4">
-            <div class="dropdown">
-              <button class="form-control form-control-sm bg-dark text-light border-secondary text-start dropdown-toggle w-100 d-flex justify-content-between align-items-center" type="button" v-bs-dropdown data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-                <span class="text-truncate">{{ selectedServiceArea.length === 0 ? 'All Service Areas' : selectedServiceArea.length === 1 ? selectedServiceArea[0] : `${selectedServiceArea.length} Service Areas Selected` }}</span>
-              </button>
-              <div class="dropdown-menu dropdown-menu-dark bg-dark w-100 p-2 border-secondary shadow" style="min-width: 250px;">
-                <input type="text" class="form-control form-control-sm mb-2 bg-dark text-light border-secondary shadow-none" placeholder="Search service area..." v-model="serviceFilterText">
-                <div style="max-height: 200px; overflow-y: auto;">
-                  <a class="dropdown-item d-flex align-items-center gap-2" href="#" @click.prevent="selectedServiceArea = []">
-                    <input class="form-check-input mt-0" type="checkbox" :checked="selectedServiceArea.length === 0" style="pointer-events: none;">
-                    <span>All Service Areas</span>
-                  </a>
-                  <a class="dropdown-item d-flex align-items-center gap-2" href="#" v-for="act in filteredServiceList" :key="act" @click.prevent="toggleFilter(selectedServiceArea, act)">
-                    <input class="form-check-input mt-0" type="checkbox" :checked="selectedServiceArea.includes(act)" style="pointer-events: none;">
-                    <span>{{ act }}</span>
-                  </a>
-                  <div v-if="filteredServiceList.length === 0" class="text-muted small px-3 py-1">No service areas found</div>
-                </div>
-              </div>
-            </div>
+            <MultiSelectDropdown
+              v-model="selectedServiceArea"
+              :options="uniqueServiceAreas"
+              placeholder="All Service Areas"
+              all-label="All Service Areas"
+              id-prefix="rad-service"
+              size="sm"
+            />
           </div>
         </div>
       </div>
@@ -495,7 +391,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from '@/plugins/axios';
 
-import AreaFilterBar from '@/components/common/AreaFilterBar.vue';
+import MultiSelectDropdown from '@/components/common/MultiSelectDropdown.vue';
 
 const router = useRouter();
 
@@ -524,22 +420,16 @@ const filters = ref({
 const circles = ref<any[]>([]);
 const policeStations = ref<any[]>([]);
 
-interface DisplayedPs {
-  name: string;
-  ids: number[];
-}
-
-const circleFilterText = ref('');
-const psFilterText = ref('');
-
-const filteredCircles = computed(() => {
-  const list = circles.value || [];
-  if (!circleFilterText.value.trim()) return list;
-  const t = circleFilterText.value.toLowerCase().trim();
-  return list.filter((c: any) => c.name && c.name.toLowerCase().includes(t));
+const circleOptions = computed(() => {
+  return (circles.value || []).map((c: any) => ({
+    label: c.name,
+    value: Number(c.id)
+  }));
 });
 
-const displayedPoliceStations = computed<DisplayedPs[]>(() => {
+const selectedPsNames = ref<string[]>([]);
+
+const psOptions = computed(() => {
   const list = policeStations.value || [];
   let matching = list;
 
@@ -550,77 +440,18 @@ const displayedPoliceStations = computed<DisplayedPs[]>(() => {
     );
   }
 
-  if (psFilterText.value.trim()) {
-    const search = psFilterText.value.toLowerCase().trim();
-    matching = matching.filter((ps: any) => ps.name && ps.name.toLowerCase().includes(search));
-  }
-
-  const map = new Map<string, number[]>();
-  matching.forEach((ps: any) => {
-    if (!ps.name) return;
-    const name = ps.name.trim();
-    if (!map.has(name)) {
-      map.set(name, []);
-    }
-    const arr = map.get(name)!;
-    const id = Number(ps.id);
-    if (!isNaN(id) && !arr.includes(id)) {
-      arr.push(id);
-    }
-  });
-
-  return Array.from(map.entries())
-    .map(([name, ids]) => ({ name, ids }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const names = Array.from(new Set(matching.map((ps: any) => ps.name?.trim()).filter(Boolean)));
+  return names.sort();
 });
 
-const selectAllCircles = () => {
-  filters.value.circleIds = [];
-  fetchAnalytics();
-};
-
-const toggleCircle = (circleId: number) => {
-  let updated: number[];
-  if (filters.value.circleIds.includes(circleId)) {
-    updated = filters.value.circleIds.filter((id) => id !== circleId);
+watch(selectedPsNames, (names) => {
+  if (names.length === 0) {
+    filters.value.policeStationIds = [];
   } else {
-    updated = [...filters.value.circleIds, circleId];
+    const list = policeStations.value || [];
+    const matched = list.filter((ps: any) => ps.name && names.includes(ps.name.trim()));
+    filters.value.policeStationIds = matched.map((ps: any) => Number(ps.id));
   }
-  filters.value.circleIds = updated;
-  fetchAnalytics();
-};
-
-const isPsChecked = (ps: DisplayedPs) => {
-  return ps.ids.length > 0 && ps.ids.some((id) => filters.value.policeStationIds.includes(id));
-};
-
-const selectAllPs = () => {
-  filters.value.policeStationIds = [];
-  fetchAnalytics();
-};
-
-const togglePsSelection = (ps: DisplayedPs) => {
-  const checked = isPsChecked(ps);
-  let updated: number[];
-  if (checked) {
-    updated = filters.value.policeStationIds.filter((id) => !ps.ids.includes(id));
-  } else {
-    const toAdd = ps.ids.filter((id) => !filters.value.policeStationIds.includes(id));
-    updated = [...filters.value.policeStationIds, ...toAdd];
-  }
-  filters.value.policeStationIds = updated;
-  fetchAnalytics();
-};
-
-const selectedPsCount = computed(() => {
-  const allList = policeStations.value || [];
-  const selected = new Set<string>();
-  allList.forEach((ps: any) => {
-    if (filters.value.policeStationIds.includes(Number(ps.id))) {
-      selected.add(ps.name.trim());
-    }
-  });
-  return selected.size;
 });
 
 // Area Filters State
@@ -633,22 +464,9 @@ const uniqueMfgAreasBase = ref<string[]>([]);
 const uniqueServiceAreasBase = ref<string[]>([]);
 const areaRelations = ref<{ major: string; mfg: string | null; service: string | null }[]>([]);
 
-const majorFilterText = ref('');
-const mfgFilterText = ref('');
-const serviceFilterText = ref('');
-
-const toggleFilter = (filterRef: string[], value: string) => {
-  const index = filterRef.indexOf(value);
-  if (index > -1) {
-    filterRef.splice(index, 1);
-  } else {
-    filterRef.push(value);
-  }
-};
-
-
 const resetAllFilters = () => {
   filters.value.circleIds = [];
+  selectedPsNames.value = [];
   filters.value.policeStationIds = [];
   filters.value.fromDate = prevMonth;
   filters.value.toDate = prevMonth;
@@ -665,8 +483,14 @@ const uniqueMfgAreas = computed(() => {
   }
   const validMfg = new Set<string>();
   for (const rel of areaRelations.value) {
-    if (rel.major && selectedMajorArea.value.includes(rel.major) && rel.mfg) {
-      validMfg.add(rel.mfg);
+    if (!rel.major || !rel.mfg) continue;
+    const majors = rel.major.split(';').map((s) => s.trim());
+    if (majors.some((m) => selectedMajorArea.value.includes(m))) {
+      rel.mfg
+        .split(';')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((m) => validMfg.add(m));
     }
   }
   return Array.from(validMfg).sort();
@@ -678,30 +502,17 @@ const uniqueServiceAreas = computed(() => {
   }
   const validService = new Set<string>();
   for (const rel of areaRelations.value) {
-    if (rel.major && selectedMajorArea.value.includes(rel.major) && rel.service) {
-      validService.add(rel.service);
+    if (!rel.major || !rel.service) continue;
+    const majors = rel.major.split(';').map((s) => s.trim());
+    if (majors.some((m) => selectedMajorArea.value.includes(m))) {
+      rel.service
+        .split(';')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((s) => validService.add(s));
     }
   }
   return Array.from(validService).sort();
-});
-
-// Filtered by Search Inputs
-const filteredMajorList = computed(() => {
-  if (!majorFilterText.value.trim()) return uniqueMajorAreas.value;
-  const q = majorFilterText.value.toLowerCase();
-  return uniqueMajorAreas.value.filter(a => a.toLowerCase().includes(q));
-});
-
-const filteredMfgList = computed(() => {
-  if (!mfgFilterText.value.trim()) return uniqueMfgAreas.value;
-  const q = mfgFilterText.value.toLowerCase();
-  return uniqueMfgAreas.value.filter(a => a.toLowerCase().includes(q));
-});
-
-const filteredServiceList = computed(() => {
-  if (!serviceFilterText.value.trim()) return uniqueServiceAreas.value;
-  const q = serviceFilterText.value.toLowerCase();
-  return uniqueServiceAreas.value.filter(a => a.toLowerCase().includes(q));
 });
 
 const fetchAreaOptions = async () => {
@@ -924,6 +735,7 @@ const openEntityDrilldown = (type: 'activity' | 'registration', value: string) =
 };
 
 watch(() => filters.value.circleIds, () => {
+  selectedPsNames.value = [];
   filters.value.policeStationIds = [];
   fetchAnalytics();
 }, { deep: true });

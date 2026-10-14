@@ -210,7 +210,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useHead } from '@vueuse/head';
 import Pagebar from '@/components/Pagebar.vue';
-import axios from '@/plugins/axios';
+import { binApi, settingsApi } from '@/services/api/index.js';
 import * as bootstrap from 'bootstrap';
 import { authUser } from '@/composables/useAuth';
 import { formatDateDisplay } from '@/utils/format';
@@ -306,13 +306,11 @@ const handleFileUpload = async (event: Event) => {
   }, 500);
 
   try {
-    const response = await axios.post('/api/bin-analyser/parse', formData, {
-      timeout: 180000
-    });
+    const response = await binApi.parse(formData);
     
     processingProgress.value = 100;
     setTimeout(() => {
-      parsedData.value = response.data.data;
+      parsedData.value = response.data;
       modalInstance?.show();
     }, 800);
   } catch (error: any) {
@@ -348,8 +346,8 @@ const saveToDatabase = async (startIndex: number | Event = 0) => {
       currentChunkIndex.value = i;
       const chunk = parsedData.value.slice(i, i + chunkSize);
       
-      const response = await axios.post('/api/bin-analyser/save', { data: chunk });
-      totalSaved.value += response.data.insertedRows;
+      const response = await binApi.save(chunk);
+      totalSaved.value += response.insertedRows;
       saveProgress.value = Math.round((Math.min(i + chunkSize, total) / total) * 100);
     }
 
@@ -378,15 +376,15 @@ const autoCreateMissingData = async () => {
   creatingMissing.value = true;
   try {
     for (const divName of missingDivisions.value) {
-      await axios.post('/api/settings/divisions', { name: divName });
+      await settingsApi.createDivision({ name: divName });
     }
-    const divRes = await axios.get('/api/settings/divisions');
-    const allDivs = divRes.data.data;
+    const divRes = await settingsApi.getDivisions();
+    const allDivs = divRes.data;
 
     for (const c of missingCircles.value) {
       const parentDiv = allDivs.find((d: any) => d.name.toLowerCase() === c.division.toLowerCase());
       if (parentDiv) {
-        await axios.post('/api/settings/circles', { name: c.name, divisionId: parentDiv.id });
+        await settingsApi.createCircle({ name: c.name, divisionId: parentDiv.id });
       }
     }
 

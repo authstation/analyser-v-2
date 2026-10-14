@@ -192,7 +192,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, onBeforeUnmount, nextTick } from 'vue';
-import axios from '@/plugins/axios';
+import { returnDataApi, settingsApi } from '@/services/api/index.js';
 import { useAuthStore } from '@/stores/auth';
 import { Modal } from 'bootstrap';
 import Pagebar from '@/components/Pagebar.vue';
@@ -251,16 +251,14 @@ const handleFileUpload = async (event: Event) => {
   }, 500);
 
   try {
-    const response = await axios.post('/api/return-data/parse', formData, {
-      timeout: 180000
-    });
+    const response = await returnDataApi.parse(formData);
     
     processingProgress.value = 100;
     setTimeout(() => {
-      parsedData.value = response.data.data || [];
-      unmatchedRowsCount.value = response.data.unmatchedRows || 0;
-      unmatchedBinsCount.value = response.data.unmatchedBins || 0;
-      totalFileRows.value = response.data.totalRows || (parsedData.value.length + unmatchedRowsCount.value);
+      parsedData.value = response.data || [];
+      unmatchedRowsCount.value = response.unmatchedRows || 0;
+      unmatchedBinsCount.value = response.unmatchedBins || 0;
+      totalFileRows.value = response.totalRows || (parsedData.value.length + unmatchedRowsCount.value);
       if (previewModalInst) {
         previewModalInst.show();
       }
@@ -359,11 +357,9 @@ const saveToDatabase = async (startIndex: number | Event = 0) => {
       currentChunkIndex.value = i;
       const chunk = parsedData.value.slice(i, i + chunkSize);
       
-      const response = await axios.post('/api/return-data/save', {
-        data: chunk
-      });
+      const response = await returnDataApi.save(chunk);
       
-      totalSaved.value += response.data.insertedRows;
+      totalSaved.value += response.insertedRows;
       saveProgress.value = Math.round((Math.min(i + chunkSize, total) / total) * 100);
     }
 
@@ -401,17 +397,17 @@ const autoCreateMissingData = async () => {
     
     // Create Divisions first
     for (const divName of missingDivisions.value) {
-      await axios.post('/api/settings/divisions', { name: divName });
+      await settingsApi.createDivision({ name: divName });
     }
 
-    const divRes = await axios.get('/api/settings/divisions');
-    const allDivs = divRes.data.data;
+    const divRes = await settingsApi.getDivisions();
+    const allDivs = divRes.data;
 
     // Create Circles
     for (const c of missingCircles.value) {
       const parentDiv = allDivs.find((d: any) => d.name.toLowerCase() === c.division.toLowerCase());
       if (parentDiv) {
-        await axios.post('/api/settings/circles', { 
+        await settingsApi.createCircle({ 
           name: c.name, 
           divisionId: parentDiv.id 
         });

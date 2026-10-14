@@ -509,7 +509,8 @@ const resetFilters = () => {
   selectedMfgArea.value = [];
   selectedServiceArea.value = [];
   searchQuery.value = "";
-  fetchNonFilerList();
+  listData.value = [];
+  hasLoaded.value = false;
 };
 
 const viewPenaltyReport = (bin: string) => {
