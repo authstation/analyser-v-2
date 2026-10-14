@@ -177,6 +177,22 @@ export const parse: Handler = async (c: any) => {
         hasValidData = true;
       }
       if (!hasValidData) continue;
+
+      // Ignore Excel footer / summary / blank rows that have no BIN, no submission ID, and no tax period
+      const rawBin = mappedRow.bin ? String(mappedRow.bin).trim() : "";
+      const rawSub = mappedRow.submission_id ? String(mappedRow.submission_id).trim() : "";
+      const rawPeriod = mappedRow.tax_period ? String(mappedRow.tax_period).trim() : "";
+      
+      if (!rawBin && !rawSub && !rawPeriod) {
+        continue;
+      }
+
+      // Also ignore if the cell is a summary footer like "Total" or "Grand Total"
+      if (rawBin.toLowerCase() === "total" || rawBin.toLowerCase() === "grand total" ||
+          rawSub.toLowerCase() === "total" || rawSub.toLowerCase() === "grand total") {
+        continue;
+      }
+
       mappedRow.rawJson = JSON.stringify(row);
       mappedRow.tempId = Math.random().toString(36).substring(2, 11);
       processedData.push(mappedRow);
