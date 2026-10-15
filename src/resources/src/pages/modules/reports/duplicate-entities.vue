@@ -148,7 +148,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useDataStore } from '@/stores/data';
 import { useRouter } from 'vue-router';
 import axios from '@/plugins/axios';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/utils/xlsx';
 
 import MultiSelectDropdown from '@/components/common/MultiSelectDropdown.vue';
 
@@ -175,8 +175,9 @@ watch(searchCircles, (newCircles) => {
 
 
 // Download to Excel
-const downloadExcel = () => {
+const downloadExcel = async () => {
   if (duplicateGroups.value.length === 0) return;
+  const XLSX = await loadXLSX();
   
   const exportData: any[] = [];
   
@@ -262,7 +263,7 @@ const runAnalysis = async () => {
 
 const goToSearchEntity = (bin: string) => {
   if (!bin) return;
-  const routeData = router.resolve({ name: 'SearchEntity', query: { q: bin } });
+  const routeData = router.resolve({ name: 'bin-search-entity', query: { q: bin } });
   window.open(routeData.href, '_blank');
 };
 </script>

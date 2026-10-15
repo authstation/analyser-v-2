@@ -6,7 +6,9 @@ import { returnData } from "@/modules/return-data-analyser/database/models/retur
 import {
   getUserApprovedCircleIds,
   resolveAllowedCircleIds,
-  extractRows
+  extractRows,
+  monthRange,
+  areaOverlap
 } from "../utils/helpers.js";
 
 export const fyComparison: Handler = async (c: any) => {
@@ -95,24 +97,28 @@ export const fyComparison: Handler = async (c: any) => {
     if (forcedRegistration === "Yes") {
       filterClause = sql`${filterClause} AND "bin_data"."forced_registration" = 'Yes'`;
     }
-    if (majorAreas.length > 0) {
-      filterClause = sql`${filterClause} AND "bin_data"."major_area" IN (${sql.join(
-        majorAreas.map((a: string) => sql`${a}`),
+    // Normalized activity arrays + GIN overlap (exact multi-select, no substring
+    // false-positives and index-backed instead of an un-indexable text equality).
+    filterClause = sql`${filterClause} AND ${areaOverlap('"bin_data"."major_areas"', majorAreas)} AND ${areaOverlap('"bin_data"."manufacturing_areas"', mfgAreas)} AND ${areaOverlap('"bin_data"."service_areas"', serviceAreas)}`;
+
+    // bin_data-only scope for the eligible-count query (no return_data join).
+    let eligibleFilter = isUnauthorized ? sql`1=0` : sql`1=1`;
+    if (!isUnauthorized && allowedCircleIds !== null && allowedCircleIds.length > 0) {
+      eligibleFilter = sql`${eligibleFilter} AND "bin_data"."circle_id" IN (${sql.join(
+        allowedCircleIds.map((id: number) => sql`${id}`),
         sql`, `
       )})`;
     }
-    if (mfgAreas.length > 0) {
-      filterClause = sql`${filterClause} AND "bin_data"."manufacturing_area" IN (${sql.join(
-        mfgAreas.map((a: string) => sql`${a}`),
+    if (psIds.length > 0) {
+      eligibleFilter = sql`${eligibleFilter} AND "bin_data"."police_station_id" IN (${sql.join(
+        psIds.map((id: number) => sql`${id}`),
         sql`, `
       )})`;
     }
-    if (serviceAreas.length > 0) {
-      filterClause = sql`${filterClause} AND "bin_data"."service_area" IN (${sql.join(
-        serviceAreas.map((a: string) => sql`${a}`),
-        sql`, `
-      )})`;
+    if (forcedRegistration === "Yes") {
+      eligibleFilter = sql`${eligibleFilter} AND "bin_data"."forced_registration" = 'Yes'`;
     }
+    eligibleFilter = sql`${eligibleFilter} AND ${areaOverlap('"bin_data"."major_areas"', majorAreas)} AND ${areaOverlap('"bin_data"."manufacturing_areas"', mfgAreas)} AND ${areaOverlap('"bin_data"."service_areas"', serviceAreas)}`;
 
     const prevDateStrs: string[] = [];
     const currDateStrs: string[] = [];
@@ -138,73 +144,31 @@ export const fyComparison: Handler = async (c: any) => {
       FROM "return_data"
       INNER JOIN "bin_data" ON "return_data"."bin" = "bin_data"."bin"
       WHERE ${filterClause}
-        AND to_char("return_data"."tax_period", 'YYYY-MM') IN (${sql.join(
-          allDateStrs.map((d) => sql`${d}`),
-          sql`, `
-        )})
+        AND ${monthRange('"return_data"."tax_period"', allDateStrs[0], allDateStrs[allDateStrs.length - 1])}
       GROUP BY to_char("return_data"."tax_period", 'YYYY-MM')
     `)
     );
     const returnsByPeriod: Record<string, any> = {};
     for (const r of allReturns) returnsByPeriod[r.period as string] = r;
 
-    const eligibleResults = await Promise.all(
-      allDateStrs.map(async (dateStr) => {
-        const res = await db.execute(sql`
-        SELECT COUNT(DISTINCT "bin_data"."bin") as cnt FROM "bin_data"
-        WHERE "bin_data"."bin_status" NOT IN ('Cancelled', 'Suspended')
-          AND ("bin_data"."bin_issue_date" IS NULL OR cast("bin_data"."bin_issue_date" as date) <= (cast(to_date(${dateStr}, 'YYYY-MM') as date) + interval '1 month' - interval '1 day'))
-        ${
-          !isUnauthorized && allowedCircleIds !== null && allowedCircleIds.length > 0
-            ? sql`AND "bin_data"."circle_id" IN (${sql.join(
-                allowedCircleIds.map((id: number) => sql`${id}`),
-                sql`, `
-              )})`
-            : isUnauthorized
-              ? sql`AND 1=0`
-              : sql``
-        }
-        ${
-          psIds.length > 0
-            ? sql`AND "bin_data"."police_station_id" IN (${sql.join(
-                psIds.map((id: number) => sql`${id}`),
-                sql`, `
-              )})`
-            : sql``
-        }
-        ${forcedRegistration === "Yes" ? sql`AND "bin_data"."forced_registration" = 'Yes'` : sql``}
-        ${
-          majorAreas.length > 0
-            ? sql`AND "bin_data"."major_area" IN (${sql.join(
-                majorAreas.map((a: string) => sql`${a}`),
-                sql`, `
-              )})`
-            : sql``
-        }
-        ${
-          mfgAreas.length > 0
-            ? sql`AND "bin_data"."manufacturing_area" IN (${sql.join(
-                mfgAreas.map((a: string) => sql`${a}`),
-                sql`, `
-              )})`
-            : sql``
-        }
-        ${
-          serviceAreas.length > 0
-            ? sql`AND "bin_data"."service_area" IN (${sql.join(
-                serviceAreas.map((a: string) => sql`${a}`),
-                sql`, `
-              )})`
-            : sql``
-        }
-      `);
-        return extractRows(res);
-      })
+    // One set-based query for every month instead of one round-trip per month.
+    const eligibleRows = extractRows(
+      await db.execute(sql`
+        SELECT ds AS date_str, count(DISTINCT "bin_data"."bin")::int AS cnt
+        FROM unnest(ARRAY[${sql.join(
+          allDateStrs.map((d) => sql`${d}`),
+          sql`, `
+        )}]::text[]) AS ds
+        LEFT JOIN "bin_data"
+          ON "bin_data"."bin_status" NOT IN ('Cancelled', 'Suspended')
+         AND ("bin_data"."bin_issue_date" IS NULL OR "bin_data"."bin_issue_date" < (to_date(ds, 'YYYY-MM')::timestamp + interval '1 month'))
+         AND ${eligibleFilter}
+        GROUP BY ds
+      `)
     );
     const eligibleByDate: Record<string, number> = {};
-    allDateStrs.forEach((d, i) => {
-      eligibleByDate[d] = Number(eligibleResults[i]?.[0]?.cnt) || 0;
-    });
+    for (const d of allDateStrs) eligibleByDate[d] = 0;
+    for (const r of eligibleRows) eligibleByDate[r.date_str as string] = Number(r.cnt) || 0;
 
     const targetPeriod = toDate || fromDate || "";
     let reportMonthIndex = -1;
@@ -361,24 +325,28 @@ export const yearComparison: Handler = async (c: any) => {
     if (forcedRegistration === "Yes") {
       filterClause = sql`${filterClause} AND "bin_data"."forced_registration" = 'Yes'`;
     }
-    if (majorAreas.length > 0) {
-      filterClause = sql`${filterClause} AND "bin_data"."major_area" IN (${sql.join(
-        majorAreas.map((a: string) => sql`${a}`),
+    // Normalized activity arrays + GIN overlap (exact multi-select, no substring
+    // false-positives and index-backed instead of an un-indexable text equality).
+    filterClause = sql`${filterClause} AND ${areaOverlap('"bin_data"."major_areas"', majorAreas)} AND ${areaOverlap('"bin_data"."manufacturing_areas"', mfgAreas)} AND ${areaOverlap('"bin_data"."service_areas"', serviceAreas)}`;
+
+    // bin_data-only scope for the eligible-count query (no return_data join).
+    let eligibleFilter = isUnauthorized ? sql`1=0` : sql`1=1`;
+    if (!isUnauthorized && allowedCircleIds !== null && allowedCircleIds.length > 0) {
+      eligibleFilter = sql`${eligibleFilter} AND "bin_data"."circle_id" IN (${sql.join(
+        allowedCircleIds.map((id: number) => sql`${id}`),
         sql`, `
       )})`;
     }
-    if (mfgAreas.length > 0) {
-      filterClause = sql`${filterClause} AND "bin_data"."manufacturing_area" IN (${sql.join(
-        mfgAreas.map((a: string) => sql`${a}`),
+    if (psIds.length > 0) {
+      eligibleFilter = sql`${eligibleFilter} AND "bin_data"."police_station_id" IN (${sql.join(
+        psIds.map((id: number) => sql`${id}`),
         sql`, `
       )})`;
     }
-    if (serviceAreas.length > 0) {
-      filterClause = sql`${filterClause} AND "bin_data"."service_area" IN (${sql.join(
-        serviceAreas.map((a: string) => sql`${a}`),
-        sql`, `
-      )})`;
+    if (forcedRegistration === "Yes") {
+      eligibleFilter = sql`${eligibleFilter} AND "bin_data"."forced_registration" = 'Yes'`;
     }
+    eligibleFilter = sql`${eligibleFilter} AND ${areaOverlap('"bin_data"."major_areas"', majorAreas)} AND ${areaOverlap('"bin_data"."manufacturing_areas"', mfgAreas)} AND ${areaOverlap('"bin_data"."service_areas"', serviceAreas)}`;
 
     const refDate = toDate ? new Date(toDate + "-01") : new Date();
     const targetPeriod = toDate ? toDate : `${refDate.getFullYear()}-${String(refDate.getMonth() + 1).padStart(2, "0")}`;
@@ -430,73 +398,31 @@ export const yearComparison: Handler = async (c: any) => {
       FROM "return_data"
       INNER JOIN "bin_data" ON "return_data"."bin" = "bin_data"."bin"
       WHERE ${filterClause}
-        AND to_char("return_data"."tax_period", 'YYYY-MM') IN (${sql.join(
-          allDateStrs.map((d) => sql`${d}`),
-          sql`, `
-        )})
+        AND ${monthRange('"return_data"."tax_period"', allDateStrs[0], allDateStrs[allDateStrs.length - 1])}
       GROUP BY to_char("return_data"."tax_period", 'YYYY-MM')
     `)
     );
     const returnsByPeriod: Record<string, any> = {};
     for (const r of allReturns) returnsByPeriod[r.period as string] = r;
 
-    const eligibleResults = await Promise.all(
-      allDateStrs.map(async (dateStr) => {
-        const res = await db.execute(sql`
-        SELECT COUNT(DISTINCT "bin_data"."bin") as cnt FROM "bin_data"
-        WHERE "bin_data"."bin_status" NOT IN ('Cancelled', 'Suspended')
-          AND ("bin_data"."bin_issue_date" IS NULL OR cast("bin_data"."bin_issue_date" as date) <= (cast(to_date(${dateStr}, 'YYYY-MM') as date) + interval '1 month' - interval '1 day'))
-        ${
-          !isUnauthorized && allowedCircleIds !== null && allowedCircleIds.length > 0
-            ? sql`AND "bin_data"."circle_id" IN (${sql.join(
-                allowedCircleIds.map((id: number) => sql`${id}`),
-                sql`, `
-              )})`
-            : isUnauthorized
-              ? sql`AND 1=0`
-              : sql``
-        }
-        ${
-          psIds.length > 0
-            ? sql`AND "bin_data"."police_station_id" IN (${sql.join(
-                psIds.map((id: number) => sql`${id}`),
-                sql`, `
-              )})`
-            : sql``
-        }
-        ${forcedRegistration === "Yes" ? sql`AND "bin_data"."forced_registration" = 'Yes'` : sql``}
-        ${
-          majorAreas.length > 0
-            ? sql`AND "bin_data"."major_area" IN (${sql.join(
-                majorAreas.map((a: string) => sql`${a}`),
-                sql`, `
-              )})`
-            : sql``
-        }
-        ${
-          mfgAreas.length > 0
-            ? sql`AND "bin_data"."manufacturing_area" IN (${sql.join(
-                mfgAreas.map((a: string) => sql`${a}`),
-                sql`, `
-              )})`
-            : sql``
-        }
-        ${
-          serviceAreas.length > 0
-            ? sql`AND "bin_data"."service_area" IN (${sql.join(
-                serviceAreas.map((a: string) => sql`${a}`),
-                sql`, `
-              )})`
-            : sql``
-        }
-      `);
-        return extractRows(res);
-      })
+    // One set-based query for every month instead of one round-trip per month.
+    const eligibleRows = extractRows(
+      await db.execute(sql`
+        SELECT ds AS date_str, count(DISTINCT "bin_data"."bin")::int AS cnt
+        FROM unnest(ARRAY[${sql.join(
+          allDateStrs.map((d) => sql`${d}`),
+          sql`, `
+        )}]::text[]) AS ds
+        LEFT JOIN "bin_data"
+          ON "bin_data"."bin_status" NOT IN ('Cancelled', 'Suspended')
+         AND ("bin_data"."bin_issue_date" IS NULL OR "bin_data"."bin_issue_date" < (to_date(ds, 'YYYY-MM')::timestamp + interval '1 month'))
+         AND ${eligibleFilter}
+        GROUP BY ds
+      `)
     );
     const eligibleByDate: Record<string, number> = {};
-    allDateStrs.forEach((d, i) => {
-      eligibleByDate[d] = Number(eligibleResults[i]?.[0]?.cnt) || 0;
-    });
+    for (const d of allDateStrs) eligibleByDate[d] = 0;
+    for (const r of eligibleRows) eligibleByDate[r.date_str as string] = Number(r.cnt) || 0;
 
     for (const ml of monthsList) {
       const r = returnsByPeriod[ml.dateStr] || {};

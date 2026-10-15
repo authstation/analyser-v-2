@@ -185,13 +185,17 @@
                   <span class="text-muted me-1">Activity No:</span>
                   <span class="text-light fw-bold">{{ complianceInfo.activityNo }}</span>
                 </div>
+                <div class="status-box px-2 py-1 small font-monospace" v-if="complianceInfo.activityUnknown">
+                  <span class="text-muted me-1">Activity Unknown:</span>
+                  <span class="text-light fw-bold">{{ complianceInfo.activityUnknown }}</span>
+                </div>
                 <div class="status-box px-2 py-1 small font-monospace">
                   <span class="text-muted me-1">Non-Filed:</span>
                   <span class="text-danger fw-bold">{{ complianceInfo.nonFiled }}</span>
                 </div>
                 <div class="status-box px-2 py-1 small font-monospace">
                   <span class="text-muted me-1">Compliance:</span>
-                  <span class="text-success fw-bold">{{ complianceInfo.complianceRate }}%</span>
+                  <span class="text-success fw-bold">{{ complianceInfo.complianceRate == null ? 'N/A' : complianceInfo.complianceRate + '%' }}</span>
                 </div>
               </div>
             </div>
@@ -488,7 +492,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { returnDataApi } from '@/services/api/index.js';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/utils/xlsx';
 
 const route = useRoute();
 const router = useRouter();
@@ -804,8 +808,9 @@ const closeTab = () => {
   window.close();
 };
 
-const exportToExcel = () => {
+const exportToExcel = async () => {
   if (!entityInfo.value) return;
+  const XLSX = await loadXLSX();
 
   const rows: any[] = [];
   for (const g of filteredGrid.value) {

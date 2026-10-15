@@ -1,6 +1,6 @@
 import { createRoute, group, HttpStatusCodes, jsonContent, z } from "@/framework/facade.js";
 import { authMiddleware } from "@/middlewares/auth-middleware.js";
-import { filterOptions, analytics, fyComparison, yearComparison, list, searchOptions, deleteAll, parse, save, drilldownEntities, entityTrends, entityDetailsReport, nonFilerList } from "@/modules/return-data-analyser/controllers/return-data.controller.js";
+import { filterOptions, analytics, fyComparison, yearComparison, list, searchOptions, deleteAll, parse, save, importAsync, drilldownEntities, entityTrends, entityDetailsReport, nonFilerList } from "@/modules/return-data-analyser/controllers/return-data.controller.js";
 import { ReturnFilterOptionsResponseSchema, ReturnAnalyticsResponseSchema, ReturnListResponseSchema, ReturnMessageResponseSchema } from "@/modules/return-data-analyser/controllers/return-data.schema.js";
 
 const filterOptionsRoute = createRoute({
@@ -84,6 +84,15 @@ const saveRoute = createRoute({
   }
 });
 
+const importAsyncRoute = createRoute({
+  path: "/import-async",
+  method: "post",
+  tags: ["ReturnDataAnalyser"],
+  responses: {
+    [HttpStatusCodes.ACCEPTED]: jsonContent(z.any(), "Import queued")
+  }
+});
+
 const drilldownEntitiesRoute = createRoute({
   path: "/drilldown-entities",
   method: "get",
@@ -132,6 +141,7 @@ export default group(authMiddleware)
   .api(deleteAllRoute, deleteAll)
   .api(parseRoute, parse)
   .api(saveRoute, save)
+  .api(importAsyncRoute, importAsync)
   .api(drilldownEntitiesRoute, drilldownEntities)
   .api(entityTrendsRoute, entityTrends)
   .api(entityDetailsReportRoute, entityDetailsReport)

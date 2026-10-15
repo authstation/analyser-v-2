@@ -1,4 +1,5 @@
 import type { Handler } from "hono";
+import * as xlsx from "xlsx";
 import { db } from "@/framework/facade.js";
 import { and, eq, sql } from "drizzle-orm";
 import { binData } from "@/modules/bin-analyser/database/models/bin-analyser.js";
@@ -59,5 +60,74 @@ export const exportData: Handler = async (c: any) => {
   } catch (error) {
     console.error('Export error:', error);
     return c.json({ error: 'Failed to export data' }, 500);
+  }
+};
+
+/**
+ * Dedicated export for the drilldown pivot ("Registration Details") screen.
+ * Mirrors drilldownPivot filtering (exact majorArea + columnType) so the file
+ * contains exactly the rows shown in the table, and returns a real .xlsx.
+ */
+export const exportDrilldown: Handler = async (c: any) => {
+  try {
+    const user = c.get('auth');
+    const { conditions } = await buildConditions(c, user);
+
+    const majorArea = c.req.query('majorArea');
+    const columnType = c.req.query('columnType')?.toLowerCase();
+
+    if (majorArea && majorArea !== 'All' && majorArea !== 'Unknown') {
+      conditions.push(eq(binData.majorAreaOfEconomicActivity, majorArea));
+    }
+    if (columnType === 'neither' || columnType === 'majoronly') {
+      conditions.push(sql`coalesce(nullif(trim(${binData.areasOfManufacturing}), ''), 'None') = 'None' AND coalesce(nullif(trim(${binData.areasOfService}), ''), 'None') = 'None'`);
+    } else if (columnType === 'mfg') {
+      conditions.push(sql`coalesce(nullif(trim(${binData.areasOfManufacturing}), ''), 'None') != 'None'`);
+    } else if (columnType === 'srv' || columnType === 'service') {
+      conditions.push(sql`coalesce(nullif(trim(${binData.areasOfService}), ''), 'None') != 'None'`);
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const rows = await db.select({
+      bin: binData.bin, entityName: binData.entityName,
+      address: binData.address, mobile: binData.mobile,
+      majorArea: binData.majorAreaOfEconomicActivity,
+      mfgArea: binData.areasOfManufacturing,
+      srvArea: binData.areasOfService,
+      circleName: circles.name
+    }).from(binData)
+      .leftJoin(circles, eq(binData.circleId, circles.id))
+      .where(whereClause)
+      .limit(10000);
+
+    const header = ['Sl', 'Name', 'Address', 'BIN', 'Mobile', 'Major Area', 'Mfg Area', 'Service Area', 'Circle'];
+    const dataRows = rows.map((r, i) => [
+      i + 1,
+      r.entityName || 'Unknown',
+      r.address || 'N/A',
+      r.bin || '',
+      r.mobile || 'N/A',
+      r.majorArea || 'None',
+      r.mfgArea || 'None',
+      r.srvArea || 'None',
+      r.circleName || ''
+    ]);
+
+    const worksheet = xlsx.utils.aoa_to_sheet([header, ...dataRows]);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Registrations');
+    const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    return new Response(new Uint8Array(buffer), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename="registrations.xlsx"'
+      }
+    });
+  } catch (error) {
+    console.error('Drilldown export error:', error);
+    return c.json({ error: 'Failed to export drilldown data' }, 500);
   }
 };

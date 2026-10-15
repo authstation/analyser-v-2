@@ -114,7 +114,8 @@ const fetchItemMappings = async () => {
   loading.value = true;
   try {
     const res = await axios.get(`/api/settings/item-mappings?module=${selectedModule.value}`);
-    itemMappings.value = res.data.map((m: any) => ({
+    const mappings = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+    itemMappings.value = mappings.map((m: any) => ({
       ...m,
       isEditing: false,
       editItemName: m.itemName,

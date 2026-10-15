@@ -31,7 +31,7 @@
             class="form-check-input"
             type="checkbox"
             :id="allId"
-            :checked="modelValue.length === 0"
+            :checked="isAllSelected"
             @change="handleSelectAll"
           >
           <label class="form-check-label" :for="allId">{{ allLabel }}</label>
@@ -46,7 +46,7 @@
             type="checkbox"
             :value="item.value"
             :id="getItemId(item.value)"
-            :checked="modelValue.includes(item.value)"
+            :checked="isItemChecked(item.value)"
             @change="handleToggle(item.value)"
           >
           <label class="form-check-label" :for="getItemId(item.value)">{{ item.label }}</label>
@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, toRaw } from 'vue';
 
 export interface DropdownOption {
   label: string;
@@ -106,6 +106,13 @@ const isOpen = ref(false);
 const dropdownContainer = ref<HTMLElement | null>(null);
 const searchText = ref('');
 
+// The app's filter contract uses an empty array to mean "All / no filter", so an
+// empty `modelValue` normally renders as "All selected". This flag lets us tell an
+// *explicitly cleared* selection (user unchecked "All") apart from that canonical
+// "All" value. It is reset whenever the parent assigns a new array.
+const explicitlyCleared = ref(false);
+let lastEmittedValue: (string | number)[] | null = null;
+
 const allId = computed(() => `${props.idPrefix}-all`);
 
 const getItemId = (val: string | number) => {
@@ -149,8 +156,52 @@ const filteredOptions = computed<DropdownOption[]>(() => {
   );
 });
 
+const allOptionValues = computed<(string | number)[]>(() =>
+  normalizedOptions.value.map(opt => opt.value)
+);
+
+const allValuesSelected = computed(() => {
+  const values = allOptionValues.value;
+  return values.length > 0 && values.every(v => props.modelValue.includes(v));
+});
+
+// "All" is the canonical selection when the model is empty. When `showAllOption`
+// is disabled (e.g. the register form), an empty model simply means "nothing
+// selected" and no "All" row is rendered, so the canonical rule does not apply.
+const isAllSelected = computed(() => {
+  if (!props.showAllOption) return allValuesSelected.value;
+  if (explicitlyCleared.value && props.modelValue.length === 0) return false;
+  return props.modelValue.length === 0 || allValuesSelected.value;
+});
+
+const isItemChecked = (val: string | number) => {
+  // While "All" is active every option is shown as checked, even though the
+  // model itself stays empty.
+  if (props.showAllOption && props.modelValue.length === 0) {
+    return !explicitlyCleared.value;
+  }
+  return props.modelValue.includes(val);
+};
+
+const emitValue = (val: (string | number)[]) => {
+  lastEmittedValue = val;
+  emit('update:modelValue', val);
+  emit('change', val);
+};
+
+// Any value assigned by the parent (other than the one we just emitted) is an
+// external change, so drop the "explicitly cleared" state. `toRaw` unwraps Vue's
+// reactive proxy, so an array we emitted is still recognised as our own value
+// after the parent stores it in a reactive ref.
+watch(
+  () => props.modelValue,
+  val => {
+    if (toRaw(val) !== lastEmittedValue) explicitlyCleared.value = false;
+  }
+);
+
 const buttonText = computed(() => {
-  if (props.modelValue.length === 0) {
+  if (props.modelValue.length === 0 || (props.showAllOption && isAllSelected.value)) {
     return props.showAllOption ? (props.allLabel || props.placeholder) : props.placeholder;
   }
   if (props.modelValue.length === 1) {
@@ -161,20 +212,48 @@ const buttonText = computed(() => {
 });
 
 const handleSelectAll = () => {
-  emit('update:modelValue', []);
-  emit('change', []);
+  // Toggling "All" off clears the selection; toggling it on selects everything.
+  // Both are emitted as the canonical empty array so backend filters keep working.
+  explicitlyCleared.value = isAllSelected.value;
+  emitValue([]);
 };
 
 const handleToggle = (val: string | number) => {
-  const current = [...props.modelValue];
-  const idx = current.indexOf(val);
-  if (idx > -1) {
-    current.splice(idx, 1);
+  const wasCleared = explicitlyCleared.value;
+  explicitlyCleared.value = false;
+
+  const allValues = allOptionValues.value;
+  let next: (string | number)[];
+
+  if (props.showAllOption && props.modelValue.length === 0 && !wasCleared) {
+    // Model is the canonical "All", so materialize the full list minus the
+    // item that was just unchecked (the remaining items stay checked).
+    next = allValues.filter(v => v !== val);
+  } else if (props.modelValue.length === 0) {
+    // Model is explicitly empty ("none", or `showAllOption` is off), so start a
+    // fresh selection with the clicked item.
+    next = [val];
   } else {
-    current.push(val);
+    next = [...props.modelValue];
+    const idx = next.indexOf(val);
+    if (idx > -1) next.splice(idx, 1);
+    else next.push(val);
   }
-  emit('update:modelValue', current);
-  emit('change', current);
+
+  if (next.length === 0) {
+    // Nothing left selected: keep the empty payload but render "none" instead of "All".
+    explicitlyCleared.value = true;
+    emitValue([]);
+    return;
+  }
+
+  // Collapse a full selection back to the canonical "All" value ([]).
+  // Only valid when "All" is an option; otherwise an empty array means "none".
+  if (props.showAllOption && allValues.length > 0 && allValues.every(v => next.includes(v))) {
+    next = [];
+  }
+
+  emitValue(next);
 };
 </script>
 

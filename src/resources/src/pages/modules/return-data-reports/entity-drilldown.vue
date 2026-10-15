@@ -260,6 +260,10 @@
                   <span class="text-muted me-1">Activity No:</span>
                   <span class="text-light fw-bold">{{ complianceInfo.activityNo }}</span>
                 </div>
+                <div class="status-box px-2 py-1 small font-monospace" v-if="complianceInfo.activityUnknown">
+                  <span class="text-muted me-1">Activity Unknown:</span>
+                  <span class="text-light fw-bold">{{ complianceInfo.activityUnknown }}</span>
+                </div>
                 <div class="status-box px-2 py-1 small font-monospace">
                   <span class="text-muted me-1">Non-Filed:</span>
                   <span class="text-light fw-bold">{{ complianceInfo.nonFiled }}</span>
@@ -401,7 +405,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { returnDataApi } from '@/services/api/index.js';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/utils/xlsx';
 import MultiSelectDropdown from '@/components/common/MultiSelectDropdown.vue';
 import { Bar, Line } from 'vue-chartjs';
 import {
@@ -431,6 +435,7 @@ const selectedBin = ref<string>('');
 const monthlyTrends = ref<any[]>([]);
 const yearlyTrends = ref<any[]>([]);
 const selectedEntityInfo = ref<any>(null);
+const backendCompliance = ref<any>(null);
 
 const openDetailsReport = () => {
   const bin = selectedBin.value || selectedEntityInfo.value?.bin;
@@ -442,45 +447,20 @@ const openDetailsReport = () => {
   window.open(routeData.href, '_blank');
 };
 
-// Dynamic Return Filing & Compliance Info
+// Dynamic Return Filing & Compliance Info (sourced from the backend so the
+// drilldown, the trends chart and the details report always agree)
 const complianceInfo = computed(() => {
+  if (backendCompliance.value) return backendCompliance.value;
   const entity = selectedEntityInfo.value;
-  const list = monthlyTrends.value || [];
-  const issueDate = entity?.binIssueDate || 'N/A';
-  const totalSubmitted = list.length || (entity?.submissionCount ? Number(entity.submissionCount) : 0);
-  const activityYes = list.filter((m: any) => m.hasActivities === 'Yes').length;
-  const activityNo = list.filter((m: any) => m.hasActivities === 'No' || !m.hasActivities).length;
-
-  let totalDue = totalSubmitted;
-  if (issueDate && issueDate !== 'N/A') {
-    const [issueYear, issueMonth] = issueDate.split('-').map(Number);
-    let latestYear = 2026;
-    let latestMonth = 8;
-    if (list.length > 0) {
-      const last = list[list.length - 1];
-      if (last.period) {
-        const [y, m] = last.period.split('-').map(Number);
-        if (!isNaN(y) && !isNaN(m)) {
-          latestYear = y;
-          latestMonth = m;
-        }
-      }
-    }
-    if (!isNaN(issueYear) && !isNaN(issueMonth)) {
-      const diffMonths = (latestYear - issueYear) * 12 + (latestMonth - issueMonth) + 1;
-      totalDue = Math.max(diffMonths, totalSubmitted, 1);
-    }
-  }
-
-  const nonFiled = Math.max(0, totalDue - totalSubmitted);
-
   return {
-    binIssueDate: issueDate,
-    totalDue,
-    totalSubmitted,
-    activityYes,
-    activityNo,
-    nonFiled
+    binIssueDate: entity?.binIssueDate || 'N/A',
+    totalDue: 0,
+    totalSubmitted: Number(entity?.submissionCount) || 0,
+    activityYes: 0,
+    activityNo: 0,
+    activityUnknown: 0,
+    nonFiled: 0,
+    complianceRate: null
   };
 });
 
@@ -680,6 +660,7 @@ const fetchEntities = async () => {
 // Select Entity & Fetch Trends
 const selectEntity = async (bin: string) => {
   selectedBin.value = bin;
+  backendCompliance.value = null;
   const match = entities.value.find((e: any) => e.bin === bin);
   if (match) selectedEntityInfo.value = match;
 
@@ -691,6 +672,7 @@ const selectEntity = async (bin: string) => {
       if (data.entity) selectedEntityInfo.value = data.entity;
       monthlyTrends.value = data.monthly || [];
       yearlyTrends.value = data.yearly || [];
+      backendCompliance.value = data.compliance || null;
     }
   } catch (error) {
     console.error('Failed to fetch entity trends:', error);
@@ -893,8 +875,9 @@ const chartOptions = computed(() => {
 });
 
 // Excel Export Functions
-const downloadExcelAll = () => {
+const downloadExcelAll = async () => {
   if (!entities.value.length) return;
+  const XLSX = await loadXLSX();
   const rows = entities.value.map((e: any, index: number) => ({
     'Sl': index + 1,
     'BIN': e.bin,
@@ -921,8 +904,9 @@ const downloadExcelAll = () => {
   XLSX.writeFile(workbook, filename);
 };
 
-const downloadExcelEntityHistory = () => {
+const downloadExcelEntityHistory = async () => {
   if (!activeTrendData.value.length || !selectedEntityInfo.value) return;
+  const XLSX = await loadXLSX();
   const rows = activeTrendData.value.map((r: any, index: number) => ({
     'Sl': index + 1,
     'Period': r.periodLabel || r.period || r.fiscalYear,

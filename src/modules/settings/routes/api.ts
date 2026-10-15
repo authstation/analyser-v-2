@@ -42,8 +42,8 @@ router.delete("/penalties/:id", authMiddleware, requireRole('admin'), deletePena
 router.get("/mappings", authMiddleware, requireRole('admin'), getMappings);
 router.post("/mappings", authMiddleware, requireRole('admin'), updateMappings);
 
-// Police Stations
-router.get("/police-stations", authMiddleware, requireRole('admin'), getPoliceStations);
+// Police Stations (read-only geography; available to any authenticated user)
+router.get("/police-stations", authMiddleware, getPoliceStations);
 
 // Item Mappings
 router.get("/item-mappings", authMiddleware, requireRole('admin'), getItemMappings);

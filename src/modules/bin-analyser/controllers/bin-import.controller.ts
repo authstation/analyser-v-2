@@ -1,11 +1,114 @@
-import * as xlsx from 'xlsx';
 import type { Handler } from "hono";
-import { db } from "@/framework/facade.js";
+import { db, cache, storage } from "@/framework/facade.js";
 import { eq, sql } from "drizzle-orm";
 import { columnMappings, binData } from "@/modules/bin-analyser/database/models/bin-analyser.js";
 import { returnData } from "@/modules/return-data-analyser/database/models/return-data.js";
 import { circles, policeStations, divisions } from "@/modules/settings/database/models/settings.js";
 import { getSettings, getUserApprovedCircleIds, resolveCircleId } from "@/modules/bin-analyser/utils/helpers.js";
+import { type BulkValue, bulkCopySupported, copyUpsert } from "@/database/bulk-copy.js";
+import { parseBinWorkbook, isParseError } from "@/modules/bin-analyser/utils/parse-worker.js";
+import { enqueueJob } from "@/modules/jobs/services/job-runner.js";
+import { BIN_IMPORT_JOB } from "@/modules/jobs/services/job-types.js";
+import { schedulePostImportMaintenance } from "@/modules/jobs/services/maintenance-job.js";
+
+/**
+ * §3.3 — Column contract for the BIN COPY fast path. `columns` order must match
+ * `toBinDataCopyRow`; the conflict target mirrors the model's unique `bin`;
+ * `updateColumns` mirrors the previous `onConflictDoUpdate` set (note
+ * `uploaded_by` is intentionally not overwritten on update).
+ */
+export const BIN_DATA_COPY = {
+  stagingTable: "bin_data_staging",
+  targetTable: "bin_data",
+  conflictColumns: ["bin"],
+  columns: [
+    "bin",
+    "entity_name",
+    "bin_issue_date",
+    "bin_status",
+    "forced_registration",
+    "major_area",
+    "manufacturing_area",
+    "service_area",
+    "major_areas",
+    "manufacturing_areas",
+    "service_areas",
+    "email",
+    "mobile",
+    "address",
+    "hq_address",
+    "circle_id",
+    "division_id",
+    "police_station_id",
+    "e_tin",
+    "raw_json",
+    "uploaded_by"
+  ],
+  updateColumns: [
+    "entity_name",
+    "bin_issue_date",
+    "bin_status",
+    "forced_registration",
+    "major_area",
+    "manufacturing_area",
+    "service_area",
+    "major_areas",
+    "manufacturing_areas",
+    "service_areas",
+    "email",
+    "mobile",
+    "address",
+    "hq_address",
+    "division_id",
+    "circle_id",
+    "police_station_id",
+    "e_tin",
+    "raw_json"
+  ]
+} as const;
+
+/** Project a cleaned BIN row object into the `BIN_DATA_COPY.columns` order. */
+export function toBinDataCopyRow(row: any): BulkValue[] {
+  return [
+    row.bin ?? null,
+    row.entityName ?? null,
+    row.binIssueDate ?? null,
+    row.binStatus ?? null,
+    row.forcedRegistration ?? null,
+    row.majorAreaOfEconomicActivity ?? null,
+    row.areasOfManufacturing ?? null,
+    row.areasOfService ?? null,
+    row.majorAreas ?? null,
+    row.manufacturingAreas ?? null,
+    row.serviceAreas ?? null,
+    row.email ?? null,
+    row.mobile ?? null,
+    row.address ?? null,
+    row.hqAddress ?? null,
+    row.circleId ?? null,
+    row.divisionId ?? null,
+    row.policeStationId ?? null,
+    row.eTin ?? null,
+    row.rawJson ?? null,
+    row.uploadedBy ?? null
+  ];
+}
+
+/**
+ * Why: §2.3/§2.4/§3.1 — any BIN mutation changes the derived area dimension
+ *      table and every dashboard cache. Cache purging stays inline (so the next
+ *      request never serves a pre-mutation payload), while the heavier dimension
+ *      rebuild and dropdown warm are deferred to a background job.
+ * When: At the end of a successful import or delete.
+ * Where: bin-import controller mutation paths.
+ * How: Purge related cache keys immediately, then enqueue post-import
+ *      maintenance (rebuild dimension -> purge again -> warm).
+ */
+async function afterBinMutation(): Promise<void> {
+  await cache.forgetPattern("bin:*");
+  await cache.forgetPattern("return-data:*");
+  await schedulePostImportMaintenance("bin");
+}
 
 const DEFAULTS: Record<string, string> = {
   max_file_size_mb: '2',
@@ -16,6 +119,28 @@ const DEFAULTS: Record<string, string> = {
 
 function setting(map: Record<string, string>, key: string): string {
   return map[key] ?? DEFAULTS[key] ?? '';
+}
+
+/**
+ * Why: The activity columns are stored as semicolon-joined text, but the dashboards
+ *      filter them with array overlap (`*_areas && ARRAY[...]`) backed by GIN indexes.
+ * When: On every BIN import row (kept byte-for-byte in sync with the model's
+ *       `binDataPerfHook` backfill so old and new rows behave identically).
+ * What: Splits on `;`, trims, drops blanks/None/N/A, de-duplicates and sorts.
+ * Returns: A sorted unique token array, or null when there are no usable tokens
+ *          (mirrors `array_agg(...)` returning NULL in the backfill).
+ */
+function splitAreas(value: string | null | undefined): string[] | null {
+  if (!value) return null;
+  const tokens = Array.from(
+    new Set(
+      value
+        .split(';')
+        .map((s) => s.trim())
+        .filter((s) => s !== '' && s !== 'None' && s !== 'N/A')
+    )
+  ).sort();
+  return tokens.length > 0 ? tokens : null;
 }
 
 const DEFAULT_MODULE_MAPPINGS: Record<string, Record<string, string>> = {
@@ -82,22 +207,6 @@ export const parse: Handler = async (c: any) => {
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const workbook = xlsx.read(buffer, { type: 'buffer', cellDates: true });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) return c.json({ error: 'No sheets found in Excel file.' }, 400);
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) return c.json({ error: 'Sheet could not be read.' }, 400);
-
-    const rawMatrix = xlsx.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: null, raw: false });
-    const rawMatrixDates = xlsx.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: null, raw: true });
-
-    if (!rawMatrix || rawMatrix.length === 0) {
-      return c.json({ error: 'The uploaded file is empty.' }, 400);
-    }
-
-    if (rawMatrix.length > maxRows + 5) {
-      return c.json({ error: `File contains too many rows. Maximum allowed is ${maxRows.toLocaleString()} data rows.` }, 400);
-    }
 
     await ensureDefaultMappings('bin_analyser').catch(() => {});
     let dbMappings = await db.query.columnMappings.findMany({
@@ -114,148 +223,80 @@ export const parse: Handler = async (c: any) => {
       }));
     }
 
-    const mappingValues = dbMappings.map((m: any) => (m.excelHeader || '').trim().toLowerCase()).filter(Boolean);
+    // §3.2 — offload read + mapping to a worker thread (keeps the event loop free).
+    const parsed = await parseBinWorkbook({
+      buffer,
+      mappings: dbMappings.map((m: any) => ({ dbColumn: m.dbColumn, excelHeader: m.excelHeader })),
+      maxRows,
+    });
 
-    let headerRowIndex = 0;
-    let maxMatches = 0;
-    for (let i = 0; i < Math.min(20, rawMatrix.length); i++) {
-      const row = rawMatrix[i];
-      if (!Array.isArray(row)) continue;
-      let matches = 0;
-      for (const cell of row) {
-        if (typeof cell === 'string') {
-          const cleanCell = cell.replace(/\r?\n|\r/g, ' ').trim().toLowerCase();
-          if (mappingValues.includes(cleanCell)) matches++;
-        }
+    if (isParseError(parsed)) {
+      switch (parsed.code) {
+        case 'NO_SHEET':
+          return c.json({ error: 'No sheets found in Excel file.' }, 400);
+        case 'NO_WORKSHEET':
+          return c.json({ error: 'Sheet could not be read.' }, 400);
+        case 'EMPTY':
+          return c.json({ error: 'The uploaded file is empty.' }, 400);
+        case 'TOO_MANY_ROWS':
+          return c.json({ error: `File contains too many rows. Maximum allowed is ${maxRows.toLocaleString()} data rows.` }, 400);
+        default:
+          throw new Error(parsed.message || 'Failed to process file.');
       }
-      if (matches > maxMatches) { maxMatches = matches; headerRowIndex = i; }
-    }
-    if (maxMatches === 0) headerRowIndex = 0;
-
-    const headers = rawMatrix[headerRowIndex] || [];
-    let dataStartIndex = headerRowIndex + 1;
-    if (dataStartIndex < rawMatrix.length) {
-      const nextRow = rawMatrix[dataStartIndex];
-      let parenthesisPatternCount = 0;
-      if (Array.isArray(nextRow)) {
-        for (const cell of nextRow) {
-          if (typeof cell === 'string' && /^\(\s*\d+\s*\)$/.test(cell.trim())) parenthesisPatternCount++;
-          else if (typeof cell === 'number' && cell < 0) parenthesisPatternCount++;
-        }
-      }
-      if (parenthesisPatternCount >= 2) dataStartIndex++;
     }
 
-    const rawData = [];
-    for (let i = dataStartIndex; i < rawMatrix.length; i++) {
-      const rowArr = rawMatrix[i];
-      const rowArrDates = rawMatrixDates[i] || [];
-      if (!Array.isArray(rowArr)) continue;
-      if (rowArr.every(cell => cell === null || cell === '')) continue;
-      const rowObj: any = {};
-      for (let j = 0; j < headers.length; j++) {
-        const header = headers[j];
-        if (header && typeof header === 'string') {
-          const cleanHeader = header.replace(/\r?\n|\r/g, ' ').trim();
-          let cellValue = rowArr[j];
-          if (rowArrDates[j] instanceof Date && !isNaN(rowArrDates[j].getTime())) {
-            const dObj = rowArrDates[j] as Date;
-            const yyyy = dObj.getUTCFullYear();
-            const mm = String(dObj.getUTCMonth() + 1).padStart(2, '0');
-            const dd = String(dObj.getUTCDate()).padStart(2, '0');
-            cellValue = `${yyyy}-${mm}-${dd}`;
-          }
-          rowObj[cleanHeader] = cellValue;
-        }
-      }
-      rawData.push(rowObj);
-    }
-
-    const processedData = [];
-    for (const row of rawData) {
-      const mappedRow: any = {};
-      let hasValidData = false;
-      if (dbMappings.length > 0) {
-        dbMappings.forEach((mapping: any) => {
-          const targetHeaders = mapping.excelHeader.split(',').map((s: string) => s.trim().toLowerCase());
-          const combinedValues: string[] = [];
-          targetHeaders.forEach((th: string) => {
-            const rowKey = Object.keys(row).find(k => k.trim().toLowerCase() === th);
-            if (rowKey && row[rowKey] !== undefined && row[rowKey] !== null && String(row[rowKey]).trim() !== '') {
-              const valStr = String(row[rowKey]).trim();
-              if (!combinedValues.includes(valStr)) {
-                combinedValues.push(valStr);
-              }
-            }
-          });
-          if (combinedValues.length > 0) {
-            const val = combinedValues.join(', ');
-            mappedRow[mapping.dbColumn] = val;
-
-            // Map both snake_case and camelCase keys for UI and backend saving compatibility
-            if (mapping.dbColumn === 'bin_issue_date' || mapping.dbColumn === 'binIssueDate') {
-              mappedRow.bin_issue_date = val;
-              mappedRow.binIssueDate = val;
-            }
-            if (mapping.dbColumn === 'division') mappedRow.division = val;
-            if (mapping.dbColumn === 'circle') mappedRow.circle = val;
-            if (mapping.dbColumn === 'bin') mappedRow.bin = val;
-            if (mapping.dbColumn === 'entity_name' || mapping.dbColumn === 'entityName') {
-              mappedRow.entity_name = val;
-              mappedRow.entityName = val;
-            }
-            if (mapping.dbColumn === 'address') mappedRow.address = val;
-            if (mapping.dbColumn === 'police_station' || mapping.dbColumn === 'policeStation') {
-              mappedRow.police_station = val;
-              mappedRow.policeStation = val;
-            }
-            if (mapping.dbColumn === 'mobile') mappedRow.mobile = val;
-            if (mapping.dbColumn === 'email') mappedRow.email = val;
-            if (mapping.dbColumn === 'hq_address' || mapping.dbColumn === 'hqAddress') {
-              mappedRow.hq_address = val;
-              mappedRow.hqAddress = val;
-            }
-            if (mapping.dbColumn === 'forced_registration' || mapping.dbColumn === 'forcedRegistration') {
-              mappedRow.forced_registration = val;
-              mappedRow.forcedRegistration = val;
-            }
-            if (mapping.dbColumn === 'major_area' || mapping.dbColumn === 'majorAreaOfEconomicActivity') {
-              mappedRow.major_area = val;
-              mappedRow.majorAreaOfEconomicActivity = val;
-            }
-            if (mapping.dbColumn === 'manufacturing_area' || mapping.dbColumn === 'areasOfManufacturing') {
-              mappedRow.manufacturing_area = val;
-              mappedRow.areasOfManufacturing = val;
-            }
-            if (mapping.dbColumn === 'service_area' || mapping.dbColumn === 'areasOfService') {
-              mappedRow.service_area = val;
-              mappedRow.areasOfService = val;
-            }
-            if (mapping.dbColumn === 'bin_status' || mapping.dbColumn === 'binStatus') {
-              mappedRow.bin_status = val;
-              mappedRow.binStatus = val;
-            }
-            if (mapping.dbColumn === 'e_tin' || mapping.dbColumn === 'eTin') {
-              mappedRow.e_tin = val;
-              mappedRow.eTin = val;
-            }
-
-            hasValidData = true;
-          }
-        });
-      } else {
-        hasValidData = true;
-      }
-      if (!hasValidData) continue;
-      mappedRow.rawJson = JSON.stringify(row);
-      mappedRow.tempId = Math.random().toString(36).substr(2, 9);
-      processedData.push(mappedRow);
-    }
-
-    return c.json({ message: 'File processed successfully.', data: processedData });
+    return c.json({ message: 'File processed successfully.', data: parsed.data });
   } catch (error: any) {
     console.error('Parse Error:', error);
     return c.json({ error: error?.message || 'Failed to process file.' }, 500);
+  }
+};
+
+/**
+ * §3.1 — Opt-in asynchronous BIN import. Stores the upload on the tmp disk and
+ * returns a job id immediately; the `bin_import` job runs the same parse+save
+ * pipeline in the background. Clients poll `GET /api/jobs/:id`.
+ */
+export const importAsync: Handler = async (c: any) => {
+  try {
+    const user = c.get('auth');
+    if (!user?.id) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const body = await c.req.parseBody();
+    const file = body['file'];
+
+    if (!file || !(file instanceof File)) {
+      return c.json({ error: 'No valid file uploaded.' }, 400);
+    }
+
+    const allowedMimeTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+    ];
+    if (!allowedMimeTypes.includes(file.type) && !file.name.endsWith('.xls') && !file.name.endsWith('.xlsx')) {
+      return c.json({ error: 'Only Excel files (.xlsx, .xls) are allowed.' }, 400);
+    }
+
+    const cfg = await getSettings(['common_max_file_size_mb', 'max_file_size_mb']);
+    const rawSize = cfg['common_max_file_size_mb'] || cfg['max_file_size_mb'];
+    const maxSizeMb = rawSize ? parseFloat(rawSize) : 50;
+    if (file.size > maxSizeMb * 1024 * 1024) {
+      return c.json({ error: `File size exceeds the maximum allowed ${maxSizeMb}MB.` }, 400);
+    }
+
+    const fileKey = await storage.disk('tmp').putFile('imports', file);
+    const jobId = await enqueueJob(
+      BIN_IMPORT_JOB,
+      { fileKey, fileName: file.name, mimeType: file.type, createdBy: user.id },
+      { createdBy: user.id, maxAttempts: 2 }
+    );
+
+    return c.json({ message: 'Import queued.', jobId, status: 'pending', statusUrl: `/api/jobs/${jobId}` }, 202);
+  } catch (error: any) {
+    console.error('Async Import Error:', error);
+    return c.json({ error: 'Failed to queue import.' }, 500);
   }
 };
 
@@ -413,6 +454,9 @@ export const save: Handler = async (c: any) => {
         majorAreaOfEconomicActivity: row.majorAreaOfEconomicActivity || row.major_area || null,
         areasOfManufacturing: row.areasOfManufacturing || row.manufacturing_area || null,
         areasOfService: row.areasOfService || row.service_area || null,
+        majorAreas: splitAreas(row.majorAreaOfEconomicActivity || row.major_area),
+        manufacturingAreas: splitAreas(row.areasOfManufacturing || row.manufacturing_area),
+        serviceAreas: splitAreas(row.areasOfService || row.service_area),
         email: row.email || null,
         mobile: row.mobile || null,
         address: row.address || null,
@@ -452,41 +496,72 @@ export const save: Handler = async (c: any) => {
     // Deduplicate within the uploaded batch by BIN to prevent PostgreSQL:
     // "ON CONFLICT DO UPDATE command cannot affect row a second time" (error 21000)
     const deduplicatedMap = new Map<string, typeof validToInsert[0]>();
+    let skippedRowsWithoutBin = 0;
     for (const row of validToInsert) {
       if (row.bin) {
         deduplicatedMap.set(row.bin.trim(), row);
+      } else {
+        skippedRowsWithoutBin++;
       }
     }
     const deduplicatedRows = Array.from(deduplicatedMap.values());
 
-    // Batch insert in chunks of 500 to prevent parameter limit overflow and optimize execution
-    const batchSize = 500;
-    for (let i = 0; i < deduplicatedRows.length; i += batchSize) {
-      const batch = deduplicatedRows.slice(i, i + batchSize);
-      await db.insert(binData).values(batch).onConflictDoUpdate({
-        target: binData.bin,
-        set: {
-          entityName: sql`EXCLUDED.entity_name`,
-          binIssueDate: sql`EXCLUDED.bin_issue_date`,
-          binStatus: sql`EXCLUDED.bin_status`,
-          forcedRegistration: sql`EXCLUDED.forced_registration`,
-          majorAreaOfEconomicActivity: sql`EXCLUDED.major_area`,
-          areasOfManufacturing: sql`EXCLUDED.manufacturing_area`,
-          areasOfService: sql`EXCLUDED.service_area`,
-          email: sql`EXCLUDED.email`,
-          mobile: sql`EXCLUDED.mobile`,
-          address: sql`EXCLUDED.address`,
-          hqAddress: sql`EXCLUDED.hq_address`,
-          divisionId: sql`EXCLUDED.division_id`,
-          circleId: sql`EXCLUDED.circle_id`,
-          policeStationId: sql`EXCLUDED.police_station_id`,
-          eTin: sql`EXCLUDED.e_tin`,
-          rawJson: sql`EXCLUDED.raw_json`
+    if (deduplicatedRows.length === 0) {
+      return c.json({
+        error: 'No rows contained a BIN value. Please ensure the "BIN" column is correctly mapped in Settings before saving.'
+      }, 400);
+    }
+
+    if (bulkCopySupported()) {
+      // §3.3 — One COPY into the UNLOGGED staging table + a single set-based merge.
+      await copyUpsert({
+        stagingTable: BIN_DATA_COPY.stagingTable,
+        targetTable: BIN_DATA_COPY.targetTable,
+        columns: [...BIN_DATA_COPY.columns],
+        conflictColumns: [...BIN_DATA_COPY.conflictColumns],
+        updateColumns: [...BIN_DATA_COPY.updateColumns],
+        rows: deduplicatedRows.map(toBinDataCopyRow)
+      });
+    } else {
+      // Fallback for non-PostgreSQL dialects: atomic, flush-deferred batched upsert.
+      const batchSize = 500;
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL synchronous_commit = off`);
+        for (let i = 0; i < deduplicatedRows.length; i += batchSize) {
+          const batch = deduplicatedRows.slice(i, i + batchSize);
+          await tx
+            .insert(binData)
+            .values(batch)
+            .onConflictDoUpdate({
+              target: binData.bin,
+              set: {
+                entityName: sql`EXCLUDED.entity_name`,
+                binIssueDate: sql`EXCLUDED.bin_issue_date`,
+                binStatus: sql`EXCLUDED.bin_status`,
+                forcedRegistration: sql`EXCLUDED.forced_registration`,
+                majorAreaOfEconomicActivity: sql`EXCLUDED.major_area`,
+                areasOfManufacturing: sql`EXCLUDED.manufacturing_area`,
+                areasOfService: sql`EXCLUDED.service_area`,
+                majorAreas: sql`EXCLUDED.major_areas`,
+                manufacturingAreas: sql`EXCLUDED.manufacturing_areas`,
+                serviceAreas: sql`EXCLUDED.service_areas`,
+                email: sql`EXCLUDED.email`,
+                mobile: sql`EXCLUDED.mobile`,
+                address: sql`EXCLUDED.address`,
+                hqAddress: sql`EXCLUDED.hq_address`,
+                divisionId: sql`EXCLUDED.division_id`,
+                circleId: sql`EXCLUDED.circle_id`,
+                policeStationId: sql`EXCLUDED.police_station_id`,
+                eTin: sql`EXCLUDED.e_tin`,
+                rawJson: sql`EXCLUDED.raw_json`
+              }
+            });
         }
       });
     }
 
-    return c.json({ message: 'Data saved to database successfully!', insertedRows: deduplicatedRows.length });
+    await afterBinMutation();
+    return c.json({ message: 'Data saved to database successfully!', insertedRows: deduplicatedRows.length, skippedRowsWithoutBin });
   } catch (error: any) {
     console.error('Save Error:', error);
     return c.json({ error: error.message || 'Failed to save data.' }, 500);
@@ -521,6 +596,7 @@ export const deleteAll: Handler = async (c: any) => {
         }
 
         await db.delete(binData).where(eq(binData.circleId, circleId));
+        await afterBinMutation();
         return c.json({ success: true, message: `Deleted all data for circle: ${circle}` });
       } else {
         // Check if any return data exists in the entire system
@@ -537,6 +613,7 @@ export const deleteAll: Handler = async (c: any) => {
         }
 
         await db.delete(binData);
+        await afterBinMutation();
         return c.json({ success: true, message: 'Deleted all BIN data' });
       }
     } else {
@@ -558,6 +635,7 @@ export const deleteAll: Handler = async (c: any) => {
       }
 
       await db.delete(binData).where(eq(binData.uploadedBy, user.id));
+      await afterBinMutation();
       return c.json({ success: true, message: 'Deleted your uploaded BIN data' });
     }
   } catch (error) {

@@ -132,6 +132,7 @@ export const login: Handler = async (c: any) => {
         trxId: users.trxId,
         hasChangedCircle: users.hasChangedCircle,
         createdAt: users.createdAt,
+        emailVerifiedAt: users.emailVerifiedAt,
       })
       .from(users)
       .leftJoin(plans, eq(users.planId, plans.id))
@@ -193,6 +194,7 @@ export const me: Handler = async (c: any) => {
         trxId: users.trxId,
         hasChangedCircle: users.hasChangedCircle,
         createdAt: users.createdAt,
+        emailVerifiedAt: users.emailVerifiedAt,
       })
       .from(users)
       .leftJoin(plans, eq(users.planId, plans.id))

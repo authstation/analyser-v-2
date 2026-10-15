@@ -71,7 +71,7 @@ export const filters: Handler = async (c: any) => {
     const circleKey = filterCircle || "all";
     const cacheKey = `bin:filters:${userKey}:${circleKey}`;
 
-    const data = await cache.remember(cacheKey, 300, async () => {
+    const data = await cache.remember(cacheKey, 86400, async () => {
       const [circlesList, policeStationsList, statuses, forcedRegistrations, yearsResult, [totalRows], majorAreas, mfgAreas, serviceAreas, areaRelations] = await Promise.all([
         db.selectDistinct({ circle: circles.name }).from(binData)
           .leftJoin(circles, eq(binData.circleId, circles.id))
@@ -190,10 +190,14 @@ export const filters: Handler = async (c: any) => {
 export const allStats: Handler = async (c: any) => {
   try {
     const user = c.get('auth');
-    const { conditions } = await buildConditions(c, user);
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    const fullDetails = c.req.query('fullDetails') === 'true';
-    const topN = fullDetails ? undefined : 10;
+    const userKey = user?.id ?? "public";
+    const cacheKey = `bin:stats:${userKey}:${c.req.url}`;
+
+    const statsData = await cache.remember(cacheKey, 86400, async () => {
+      const { conditions } = await buildConditions(c, user);
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const fullDetails = c.req.query('fullDetails') === 'true';
+      const topN = fullDetails ? undefined : 10;
 
     const areaQuery = (col: any, extra?: any) => {
       const q = db.select({ area: col, count: sql<number>`cast(count(${binData.id}) as integer)` })
@@ -256,17 +260,20 @@ export const allStats: Handler = async (c: any) => {
       else trendResult = trendResult.slice(-30);
     }
 
-    return c.json({
-      summary: summaryRow || { total: 0, active: 0, suspended: 0, forced: 0, cancelled: 0 },
-      charts: {
-        status: statusResult,
-        majorArea: majorAreaResult,
-        mfgArea: mfgResult,
-        srvArea: srvResult,
-        pivot: pivotResult,
-        trend: trendResult
-      }
+    return {
+        summary: summaryRow || { total: 0, active: 0, suspended: 0, forced: 0, cancelled: 0 },
+        charts: {
+          status: statusResult,
+          majorArea: majorAreaResult,
+          mfgArea: mfgResult,
+          srvArea: srvResult,
+          pivot: pivotResult,
+          trend: trendResult
+        }
+      };
     });
+
+    return c.json(statsData);
   } catch (error) {
     console.error(error);
     return c.json({ error: 'Failed to fetch dashboard stats' }, 500);

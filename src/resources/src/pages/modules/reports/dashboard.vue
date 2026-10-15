@@ -571,10 +571,10 @@ const trendOptions = {
 const majorAreaOptions = {
   ...baseChartOptions,
   indexAxis: 'y' as const,
-  onClick: (_event: any, elements: any, chart: any) => {
+  onClick: (_event: any, elements: any, _chart: any) => {
     if (elements && elements.length > 0) {
       const index = elements[0].index;
-      filters.majorArea = chart.data.labels[index];
+      filters.majorArea = dashboardStats.charts.majorArea[index]?.area ?? '';
     }
   },
   scales: { x: { ticks: { color: '#adb5bd' }, grid: { color: '#495057' } }, y: { ticks: { color: '#adb5bd' }, grid: { color: '#495057' } } }
@@ -583,10 +583,10 @@ const majorAreaOptions = {
 const manufacturingOptions = {
   ...baseChartOptions,
   indexAxis: 'y' as const,
-  onClick: (_event: any, elements: any, chart: any) => {
+  onClick: (_event: any, elements: any, _chart: any) => {
     if (elements && elements.length > 0) {
       const index = elements[0].index;
-      filters.manufacturingArea = chart.data.labels[index];
+      filters.manufacturingArea = dashboardStats.charts.mfgArea[index]?.area ?? '';
     }
   },
   scales: { x: { ticks: { color: '#adb5bd' }, grid: { color: '#495057' } }, y: { ticks: { color: '#adb5bd' }, grid: { color: '#495057' } } }
@@ -595,10 +595,10 @@ const manufacturingOptions = {
 const serviceOptions = {
   ...baseChartOptions,
   indexAxis: 'y' as const,
-  onClick: (_event: any, elements: any, chart: any) => {
+  onClick: (_event: any, elements: any, _chart: any) => {
     if (elements && elements.length > 0) {
       const index = elements[0].index;
-      filters.serviceArea = chart.data.labels[index];
+      filters.serviceArea = dashboardStats.charts.srvArea[index]?.area ?? '';
     }
   },
   scales: { x: { ticks: { color: '#adb5bd' }, grid: { color: '#495057' } }, y: { ticks: { color: '#adb5bd' }, grid: { color: '#495057' } } }

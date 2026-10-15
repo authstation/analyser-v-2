@@ -107,7 +107,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import axios from '@/plugins/axios';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/utils/xlsx';
 import { Line } from 'vue-chartjs';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 
@@ -278,7 +278,8 @@ const closeTab = () => {
   window.close();
 };
 
-  const downloadExcel = () => {
+  const downloadExcel = async () => {
+  const XLSX = await loadXLSX();
   try {
     const ws_data: any[][] = [];
     

@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, useSlots } from "vue";
+import { onMounted, ref } from "vue";
 
 defineOptions({ name: "PageBar", inheritAttrs: false });
 
@@ -14,7 +14,8 @@ interface PageBarProps {
 }
 
 const props = defineProps<PageBarProps>();
-const slots = useSlots();
+
+defineSlots<{ default?: () => any[] }>();
 
 const target = ref<HTMLElement | null>(null);
 

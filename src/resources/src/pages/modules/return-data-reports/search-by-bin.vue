@@ -12,15 +12,16 @@
         <!-- Autocomplete Search -->
         <div class="position-relative" style="max-width: 400px; flex-grow: 1;">
           <div class="input-group search-input-group">
-            <span class="input-group-text text-info"><i class="bi bi-search"></i></span>
+            <span class="input-group-text text-info" role="button" style="cursor: pointer;" title="Search" @click="handleEnterSearch"><i class="bi bi-search"></i></span>
             <input 
               type="text" 
               class="form-control text-light shadow-none" 
               placeholder="Search by BIN, Name, Mobile, or TIN..." 
               v-model="searchQuery"
-              @focus="showDropdown = true"
+              @input="onSearchInput"
+              @focus="onFocus"
               @blur="handleBlur"
-              @keyup.enter="selectFirstMatch"
+              @keyup.enter="handleEnterSearch"
             >
             <button 
               v-if="searchQuery" 
@@ -34,8 +35,8 @@
           </div>
 
           <!-- Dropdown List -->
-          <ul class="dropdown-menu dropdown-menu-dark w-100 shadow position-absolute mt-1" :class="{ show: showDropdown && searchQuery.length > 0 }" style="max-height: 300px; overflow-y: auto; z-index: 1050;">
-            <li v-for="item in searchResults" :key="item.bin">
+          <ul class="dropdown-menu dropdown-menu-dark w-100 shadow position-absolute mt-1" :class="{ show: showDropdown && searchQuery.trim().length >= minSuggestLength }" style="max-height: 300px; overflow-y: auto; z-index: 1050;">
+            <li v-for="item in suggestions" :key="item.bin">
               <a class="dropdown-item py-2 border-bottom border-secondary text-wrap" href="#" @mousedown.prevent="selectReport(item)">
                 <div class="fw-bold text-light mb-1">{{ item.entityName || item.name || 'Unknown Entity' }}</div>
                 <div class="text-muted small mb-1" style="font-size: 0.8rem; line-height: 1.2;">
@@ -49,14 +50,17 @@
                 </div>
               </a>
             </li>
-            <li v-if="searchResults.length === 0">
+            <li v-if="suggestLoading">
+              <span class="dropdown-item text-muted"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Searching...</span>
+            </li>
+            <li v-else-if="suggestions.length === 0 && suggestionsLoaded">
               <span class="dropdown-item text-muted">No matches found.</span>
             </li>
           </ul>
         </div>
         
         <div class="d-flex gap-2 ms-auto">
-          <button class="btn btn-primary px-3" @click="fetchReport()" :disabled="loading">
+          <button class="btn btn-primary px-3" @click="handleRefresh" :disabled="loading">
             <i class="bi bi-arrow-clockwise me-1"></i> Refresh
           </button>
           <button class="btn btn-outline-light px-3" @click="printReport" :disabled="loading || !selectedReport">
@@ -72,7 +76,7 @@
       <p class="mt-3 text-muted">Search for an entity by BIN, Name, or Mobile to view its non-filer penalty report.</p>
       <div v-if="loading" class="mt-2 text-info small">
         <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-        Syncing data in background...
+        Loading report...
       </div>
     </div>
 
@@ -172,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from '@/plugins/axios';
 
@@ -186,71 +190,30 @@ const handleBack = () => {
     router.push({ name: 'return-non-filer-list' });
   }
 };
-const reports = ref<any[]>([]);
 const loading = ref(false);
 const searchQuery = ref('');
 const showDropdown = ref(false);
 const selectedReport = ref<any | null>(null);
 
-const searchResults = computed(() => {
-  if (!searchQuery.value) return [];
-  const clean = (str: any) => String(str || '').replace(/[-_ ]/g, '').toLowerCase();
-  const q = clean(searchQuery.value);
-  
-  return reports.value.filter(r => 
-    clean(r.bin).includes(q) || 
-    clean(r.entityName || r.name).includes(q) ||
-    clean(r.mobile).includes(q) ||
-    clean(r.eTin).includes(q)
-  ).slice(0, 50);
-});
-
-const selectReport = (report: any) => {
-  searchQuery.value = report.bin;
-  showDropdown.value = false;
-  fetchReport(report.bin);
-};
-
-const selectFirstMatch = () => {
-  if (searchResults.value.length > 0) {
-    selectReport(searchResults.value[0]);
-  }
-};
-
-const clearSearch = () => {
-  searchQuery.value = '';
-  selectedReport.value = null;
-  showDropdown.value = false;
-};
-
-const handleBlur = () => {
-  setTimeout(() => {
-    showDropdown.value = false;
-  }, 200);
-};
-
-const fetchSearchOptions = async () => {
-  loading.value = true;
-  try {
-    const res = await axios.get('/api/return-data-analyser/non-filer-list');
-    reports.value = res.data.data || [];
-  } catch (error) {
-    console.error(error);
-  } finally {
-    loading.value = false;
-  }
-};
+// Autocomplete suggestions are fetched on demand (debounced) and never
+// preloaded, so opening the tab keeps the screen idle with no spinner.
+const suggestions = ref<any[]>([]);
+const suggestLoading = ref(false);
+const suggestionsLoaded = ref(false);
+const minSuggestLength = 3;
+let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
 const fetchReport = async (binOverride?: string) => {
-  const targetBin = binOverride || (selectedReport.value ? selectedReport.value.bin : searchQuery.value);
+  const targetBin = (binOverride || searchQuery.value || '').trim();
   if (!targetBin) return;
 
   loading.value = true;
+  showDropdown.value = false;
   try {
-    const res = await axios.get('/api/return-data-analyser/non-filer-list?q=' + encodeURIComponent(targetBin.trim()));
+    const res = await axios.get('/api/return-data-analyser/non-filer-list?q=' + encodeURIComponent(targetBin));
     if (res.data.data && res.data.data.length > 0) {
       // Find exact BIN match if multiple returned
-      const exact = res.data.data.find((item: any) => item.bin === targetBin.trim());
+      const exact = res.data.data.find((item: any) => item.bin === targetBin);
       selectedReport.value = exact || res.data.data[0];
     } else {
       alert('No non-filer record found for this BIN');
@@ -262,6 +225,78 @@ const fetchReport = async (binOverride?: string) => {
   } finally {
     loading.value = false;
   }
+};
+
+const fetchSuggestions = async (term: string) => {
+  suggestLoading.value = true;
+  try {
+    const res = await axios.get('/api/return-data-analyser/non-filer-list?q=' + encodeURIComponent(term));
+    // Ignore stale responses if the query changed while this request was in flight.
+    if (searchQuery.value.trim() !== term) return;
+    suggestions.value = (res.data.data || []).slice(0, 50);
+    suggestionsLoaded.value = true;
+  } catch (error) {
+    console.error(error);
+    if (searchQuery.value.trim() === term) {
+      suggestions.value = [];
+      suggestionsLoaded.value = true;
+    }
+  } finally {
+    if (searchQuery.value.trim() === term) suggestLoading.value = false;
+  }
+};
+
+const onSearchInput = () => {
+  showDropdown.value = true;
+  if (debounceTimer) clearTimeout(debounceTimer);
+  const term = searchQuery.value.trim();
+  if (term.length < minSuggestLength) {
+    suggestions.value = [];
+    suggestionsLoaded.value = false;
+    suggestLoading.value = false;
+    return;
+  }
+  debounceTimer = setTimeout(() => fetchSuggestions(term), 300);
+};
+
+const onFocus = () => {
+  showDropdown.value = true;
+  // Refresh suggestions on focus so the dropdown never shows stale results.
+  if (searchQuery.value.trim().length >= minSuggestLength) onSearchInput();
+};
+
+const selectReport = (report: any) => {
+  searchQuery.value = report.bin;
+  showDropdown.value = false;
+  fetchReport(report.bin);
+};
+
+// Enter (or the search icon / Refresh) performs an explicit search for the
+// current query rather than relying on any preloaded data.
+const handleEnterSearch = () => {
+  showDropdown.value = false;
+  const term = searchQuery.value.trim();
+  if (term) fetchReport(term);
+};
+
+const handleRefresh = () => {
+  const term = searchQuery.value.trim();
+  if (term) fetchReport(term);
+  else if (selectedReport.value) fetchReport(selectedReport.value.bin);
+};
+
+const clearSearch = () => {
+  searchQuery.value = '';
+  selectedReport.value = null;
+  showDropdown.value = false;
+  suggestions.value = [];
+  suggestionsLoaded.value = false;
+};
+
+const handleBlur = () => {
+  setTimeout(() => {
+    showDropdown.value = false;
+  }, 200);
 };
 
 const penaltyBreakdown = computed(() => {
@@ -371,12 +406,17 @@ const printReport = () => {
 };
 
 onMounted(async () => {
-  await fetchSearchOptions();
+  // No background preload: the screen stays idle until the user searches.
+  // If a BIN was passed via the URL (e.g. from Return List), fetch it directly.
   if (route.query.bin) {
     const bin = route.query.bin as string;
     searchQuery.value = bin;
     await fetchReport(bin);
   }
+});
+
+onBeforeUnmount(() => {
+  if (debounceTimer) clearTimeout(debounceTimer);
 });
 </script>
 

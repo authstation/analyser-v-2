@@ -278,7 +278,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import axios from '@/plugins/axios';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/utils/xlsx';
 
 
 const getRateColor = (rate: number | string) => {
@@ -537,8 +537,9 @@ const chartOptions = computed(() => ({
   }
 }));
 
-const downloadExcel = () => {
+const downloadExcel = async () => {
   if (!comparisonData.value) return;
+  const XLSX = await loadXLSX();
   try {
     const ws_data: any[][] = [];
     const prevFy = comparisonData.value.previousFy;

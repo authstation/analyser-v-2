@@ -34,6 +34,38 @@ export async function resolvePSIds(psArr: string[]): Promise<number[]> {
   return rows.map(r => r.id);
 }
 
+/**
+ * Rebuild the `bin_area_dimension` filter-options table from `bin_data`.
+ *
+ * Why: The dashboard's area dropdowns only need the distinct (major, mfg,
+ *      service) tuples; deriving them by unnesting every BIN row on each cold
+ *      request is wasteful once the set is tiny and stable.
+ * When: After a BIN import/delete (data changed) — the model hook seeds it once.
+ * How: TRUNCATE + INSERT ... SELECT DISTINCT inside one transaction so readers
+ *      never observe a half-empty table. Same relation semantics as the hook.
+ */
+export async function rebuildBinAreaDimension(): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`CREATE TABLE IF NOT EXISTS "bin_area_dimension" ("major" text, "mfg" text, "service" text)`);
+    await tx.execute(sql`TRUNCATE TABLE "bin_area_dimension"`);
+    await tx.execute(sql`
+      INSERT INTO "bin_area_dimension" ("major", "mfg", "service")
+      SELECT DISTINCT "major", "mfg", "service" FROM (
+        SELECT maj AS "major", mf AS "mfg", NULL::text AS "service"
+        FROM "bin_data" b, unnest(COALESCE(b."major_areas", '{}'::text[])) AS maj, unnest(COALESCE(b."manufacturing_areas", '{}'::text[])) AS mf
+        UNION
+        SELECT maj AS "major", NULL::text AS "mfg", sv AS "service"
+        FROM "bin_data" b, unnest(COALESCE(b."major_areas", '{}'::text[])) AS maj, unnest(COALESCE(b."service_areas", '{}'::text[])) AS sv
+        UNION
+        SELECT maj AS "major", NULL::text AS "mfg", NULL::text AS "service"
+        FROM "bin_data" b, unnest(COALESCE(b."major_areas", '{}'::text[])) AS maj
+        WHERE COALESCE(cardinality(b."manufacturing_areas"), 0) = 0
+          AND COALESCE(cardinality(b."service_areas"), 0) = 0
+      ) rel
+    `);
+  });
+}
+
 export function parseAreaParam(param: string | null | undefined): string[] {
   if (!param || param === "All") return [];
   if (param.includes("|||")) {

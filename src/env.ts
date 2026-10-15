@@ -19,6 +19,8 @@ const envSchema = z
       .optional()
       .transform((value) => value?.trim() || undefined),
     DATABASE_URL: z.string().default("sqlite:./src/storage/database/analyser.sqlite"),
+    DB_POOL_MAX: z.coerce.number().int().positive().optional(),
+    DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().nonnegative().optional(),
     REDIS: z
       .string()
       .default("false")

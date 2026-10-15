@@ -82,10 +82,19 @@ export async function initDatabase() {
   }
 
   pool = postgres(databaseConfig.url, {
-    max: 10,
+    max: databaseConfig.poolMax,
     idle_timeout: 30,
     connect_timeout: 10,
-    max_lifetime: 60 * 30
+    max_lifetime: 60 * 30,
+    connection: {
+      application_name: "analyser-v2",
+      ...(databaseConfig.statementTimeoutMs > 0
+        ? {
+            statement_timeout: databaseConfig.statementTimeoutMs,
+            idle_in_transaction_session_timeout: 60000
+          }
+        : {})
+    }
   });
   databaseInstance = drizzlePg(pool, { schema });
 

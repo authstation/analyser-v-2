@@ -26,7 +26,7 @@ const props = withDefaults(defineProps<ButtonProps>(), {
   type: "button"
 });
 
-const hasDefaultSlot = computed(() => Boolean(slots.default?.().length));
+const hasDefaultSlot = computed(() => Boolean(slots.default));
 </script>
 
 <style lang="scss" scoped></style>

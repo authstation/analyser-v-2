@@ -250,49 +250,49 @@
           <div class="row g-3">
             <div class="col">
               <div class="card bg-dark border-info h-100 shadow-sm">
-                <div class="card-body text-center p-3">
-                  <h6 class="text-info fw-bold mb-2" style="font-size: 0.8rem;">🆕 New BINs Issued</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.newBins.total?.toLocaleString() }}</h3>
+                <div class="card-body text-center p-2 py-3">
+                  <h6 class="text-info fw-bold mb-2 text-nowrap" style="font-size: 0.8rem;">🆕 New BINs Issued</h6>
+                  <div class="fs-4 fw-bold text-light mb-0 text-nowrap">{{ analyticsData.newBins.total?.toLocaleString() }}</div>
                 </div>
               </div>
             </div>
             <div class="col">
               <div class="card bg-dark border-primary h-100 shadow-sm">
-                <div class="card-body text-center p-3">
-                  <h6 class="text-primary fw-bold mb-2" style="font-size: 0.8rem;">📈 Expected Returns</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.newBins.expected?.toLocaleString() || analyticsData.newBins.expected || 0 }}</h3>
+                <div class="card-body text-center p-2 py-3">
+                  <h6 class="text-primary fw-bold mb-2 text-nowrap" style="font-size: 0.8rem;">📈 Expected Returns</h6>
+                  <div class="fs-4 fw-bold text-light mb-0 text-nowrap">{{ analyticsData.newBins.expected?.toLocaleString() || analyticsData.newBins.expected || 0 }}</div>
                 </div>
               </div>
             </div>
             <div class="col">
               <div class="card bg-dark border-success h-100 shadow-sm">
-                <div class="card-body text-center p-3">
-                  <h6 class="text-success fw-bold mb-2" style="font-size: 0.8rem;">✅ Return Filed</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.newBins.filed?.toLocaleString() }}</h3>
+                <div class="card-body text-center p-2 py-3">
+                  <h6 class="text-success fw-bold mb-2 text-nowrap" style="font-size: 0.8rem;">✅ Return Filed</h6>
+                  <div class="fs-4 fw-bold text-light mb-0 text-nowrap">{{ analyticsData.newBins.filed?.toLocaleString() }}</div>
                 </div>
               </div>
             </div>
             <div class="col">
               <div class="card bg-dark h-100 shadow-sm" style="border-color: #4caf50 !important; border-width: 1px; border-style: solid;">
-                <div class="card-body text-center p-3">
-                  <h6 class="fw-bold mb-2" style="color: #81c784; font-size: 0.8rem;">📊 Activity: Yes</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.newBins.activityYes?.toLocaleString() }}</h3>
+                <div class="card-body text-center p-2 py-3">
+                  <h6 class="fw-bold mb-2 text-nowrap" style="color: #81c784; font-size: 0.8rem;">📊 Activity: Yes</h6>
+                  <div class="fs-4 fw-bold text-light mb-0 text-nowrap">{{ analyticsData.newBins.activityYes?.toLocaleString() }}</div>
                 </div>
               </div>
             </div>
             <div class="col">
               <div class="card bg-dark h-100 shadow-sm" style="border-color: #ff9800 !important; border-width: 1px; border-style: solid;">
-                <div class="card-body text-center p-3">
-                  <h6 class="fw-bold mb-2" style="color: #ffb74d; font-size: 0.8rem;">🚫 Activity: No</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.newBins.activityNo?.toLocaleString() }}</h3>
+                <div class="card-body text-center p-2 py-3">
+                  <h6 class="fw-bold mb-2 text-nowrap" style="color: #ffb74d; font-size: 0.8rem;">🚫 Activity: No</h6>
+                  <div class="fs-4 fw-bold text-light mb-0 text-nowrap">{{ analyticsData.newBins.activityNo?.toLocaleString() }}</div>
                 </div>
               </div>
             </div>
             <div class="col">
               <div class="card bg-dark border-danger h-100 shadow-sm">
-                <div class="card-body text-center p-3">
-                  <h6 class="text-danger fw-bold mb-2" style="font-size: 0.8rem;">❌ Not Filed</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.newBins.notFiled?.toLocaleString() }}</h3>
+                <div class="card-body text-center p-2 py-3">
+                  <h6 class="text-danger fw-bold mb-2 text-nowrap" style="font-size: 0.8rem;">❌ Not Filed</h6>
+                  <div class="fs-4 fw-bold text-light mb-0 text-nowrap">{{ analyticsData.newBins.notFiled?.toLocaleString() }}</div>
                 </div>
               </div>
             </div>
@@ -323,7 +323,7 @@
               <div class="card bg-dark border-danger h-100 shadow-sm">
                 <div class="card-body text-center p-3">
                   <h6 class="text-danger fw-bold mb-2">🔴 High Risk (>= 30)</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.high }}</h3>
+                  <div class="fs-4 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.high }}</div>
                   <small class="text-muted">Entities</small>
                 </div>
               </div>
@@ -332,7 +332,7 @@
               <div class="card bg-dark h-100 shadow-sm" style="border-color: #fd7e14 !important; border-width: 1px; border-style: solid;">
                 <div class="card-body text-center p-3">
                   <h6 class="fw-bold mb-2" style="color: #fd7e14;">🟠 Risky (15-29)</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.risky }}</h3>
+                  <div class="fs-4 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.risky }}</div>
                   <small class="text-muted">Entities</small>
                 </div>
               </div>
@@ -341,7 +341,7 @@
               <div class="card bg-dark border-warning h-100 shadow-sm">
                 <div class="card-body text-center p-3">
                   <h6 class="text-warning fw-bold mb-2">🟡 Low Risk (1-14)</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.low }}</h3>
+                  <div class="fs-4 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.low }}</div>
                   <small class="text-muted">Entities</small>
                 </div>
               </div>
@@ -350,7 +350,7 @@
               <div class="card bg-dark border-success h-100 shadow-sm">
                 <div class="card-body text-center p-3">
                   <h6 class="text-success fw-bold mb-2">🟢 Safe (0)</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.safe }}</h3>
+                  <div class="fs-4 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.safe }}</div>
                   <small class="text-muted">Entities</small>
                 </div>
               </div>
@@ -359,7 +359,7 @@
               <div class="card bg-dark h-100 shadow-sm" style="border-color: #9c27b0 !important; border-width: 1px; border-style: solid;">
                 <div class="card-body text-center p-3">
                   <h6 class="fw-bold mb-2" style="color: #e1bee7;">📈 Risk Increased</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.newlyRisky !== undefined ? analyticsData.riskBreakdown.newlyRisky : 0 }}</h3>
+                  <div class="fs-4 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.newlyRisky !== undefined ? analyticsData.riskBreakdown.newlyRisky : 0 }}</div>
                   <small class="text-muted">Entities</small>
                 </div>
               </div>
@@ -368,7 +368,7 @@
               <div class="card bg-dark h-100 shadow-sm" style="border-color: #00bcd4 !important; border-width: 1px; border-style: solid;">
                 <div class="card-body text-center p-3">
                   <h6 class="fw-bold mb-2" style="color: #b2ebf2;">📉 Risk Reduced</h6>
-                  <h3 class="display-6 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.improving !== undefined ? analyticsData.riskBreakdown.improving : 0 }}</h3>
+                  <div class="fs-4 fw-bold text-light mb-0">{{ analyticsData.riskBreakdown.improving !== undefined ? analyticsData.riskBreakdown.improving : 0 }}</div>
                   <small class="text-muted">Entities</small>
                 </div>
               </div>

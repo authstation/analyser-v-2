@@ -2,7 +2,7 @@ import { createRoute, group, HttpStatusCodes, jsonContent } from "@/framework/fa
 import { z } from "@/framework/facade.js";
 import { requireRole } from "@/middlewares/role-middleware.js";
 import { authMiddleware } from "@/middlewares/auth-middleware.js";
-import { filters, allStats, list, parse, save, deleteAll, search, drilldownPivot, comparison, duplicates, exportData } from "@/modules/bin-analyser/controllers/bin-analyser.controller.js";
+import { filters, allStats, list, parse, save, deleteAll, importAsync, search, drilldownPivot, comparison, duplicates, exportData, exportDrilldown } from "@/modules/bin-analyser/controllers/bin-analyser.controller.js";
 import { BinListResponseSchema, BinFilterOptionsSchema, BinStatsResponseSchema, BinMessageResponseSchema } from "@/modules/bin-analyser/controllers/bin-analyser.schema.js";
 
 const listRoute = createRoute({
@@ -113,17 +113,27 @@ const saveRoute = createRoute({
   }
 });
 
+const importAsyncRoute = createRoute({
+  path: "/import-async",
+  method: "post",
+  tags: ["BinAnalyser"],
+  responses: {
+    [HttpStatusCodes.ACCEPTED]: jsonContent(z.any(), "Import queued")
+  }
+});
+
 export default group(authMiddleware)
   .api(listRoute, list)
   .api(filtersRoute, filters)
   .api(allStatsRoute, allStats)
   .api(drilldownRoute, drilldownPivot)
-  .api(drilldownExportRoute, exportData)
+  .api(drilldownExportRoute, exportDrilldown)
   .api(comparisonRoute, comparison)
   .api(searchRoute, search)
   .api(duplicatesRoute, duplicates)
   .api(exportRoute, exportData)
   .api(parseRoute, parse)
   .api(saveRoute, save)
+  .api(importAsyncRoute, importAsync)
   .api(deleteRoute, deleteAll);
 

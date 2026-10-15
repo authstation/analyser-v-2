@@ -1,9 +1,13 @@
-import * as xlsx from "xlsx";
 import type { Handler } from "hono";
-import { db } from "@/framework/facade.js";
+import { db, cache, storage } from "@/framework/facade.js";
 import { eq, inArray, sql } from "drizzle-orm";
 import { columnMappings, binData } from "@/modules/bin-analyser/database/models/bin-analyser.js";
 import { returnData } from "@/modules/return-data-analyser/database/models/return-data.js";
+import { type BulkValue, bulkCopySupported, copyUpsert } from "@/database/bulk-copy.js";
+import { parseReturnWorkbook, isParseError } from "@/modules/return-data-analyser/utils/parse-worker.js";
+import { enqueueJob } from "@/modules/jobs/services/job-runner.js";
+import { RETURN_IMPORT_JOB } from "@/modules/jobs/services/job-types.js";
+import { schedulePostImportMaintenance } from "@/modules/jobs/services/maintenance-job.js";
 import {
   getSettings,
   parseNumeric,
@@ -11,6 +15,106 @@ import {
   DEFAULT_RETURN_DATA_MAPPINGS,
   getUserApprovedCircleIds
 } from "../utils/helpers.js";
+
+/**
+ * §3.3 — Column contract for the COPY fast path. `columns` order must match
+ * `toReturnDataCopyRow`; the conflict target mirrors the model's unique index;
+ * `updateColumns` mirrors the previous `onConflictDoUpdate` set exactly (note
+ * `uploaded_by` is intentionally not overwritten on update).
+ */
+export const RETURN_DATA_COPY = {
+  stagingTable: "return_data_staging",
+  targetTable: "return_data",
+  conflictColumns: ["bin", "tax_period"],
+  columns: [
+    "division_id",
+    "circle_id",
+    "bin",
+    "submission_id",
+    "tax_period",
+    "has_activities",
+    "total_sales_value",
+    "total_payable_vat",
+    "total_payable_sd",
+    "total_input_tax_credit_value",
+    "total_input_tax_credit_vat",
+    "increasing_adjustment",
+    "decreasing_adjustment",
+    "net_payable_vat",
+    "net_payable_sd",
+    "fine_penalty",
+    "deposited_vat",
+    "deposited_sd",
+    "closing_balance_vat",
+    "closing_balance_sd",
+    "vds_increasing",
+    "vds_decreasing",
+    "advanced_tax_paid",
+    "submission_date",
+    "last_amendment_date",
+    "raw_json",
+    "uploaded_by"
+  ],
+  updateColumns: [
+    "submission_id",
+    "has_activities",
+    "total_sales_value",
+    "total_payable_vat",
+    "total_payable_sd",
+    "total_input_tax_credit_value",
+    "total_input_tax_credit_vat",
+    "increasing_adjustment",
+    "decreasing_adjustment",
+    "net_payable_vat",
+    "net_payable_sd",
+    "fine_penalty",
+    "deposited_vat",
+    "deposited_sd",
+    "closing_balance_vat",
+    "closing_balance_sd",
+    "vds_increasing",
+    "vds_decreasing",
+    "advanced_tax_paid",
+    "submission_date",
+    "last_amendment_date",
+    "circle_id",
+    "division_id",
+    "raw_json"
+  ]
+} as const;
+
+/** Project a cleaned row object into the `RETURN_DATA_COPY.columns` order. */
+export function toReturnDataCopyRow(row: any): BulkValue[] {
+  return [
+    row.divisionId ?? null,
+    row.circleId ?? null,
+    row.bin,
+    row.submissionId ?? null,
+    row.taxPeriod ?? null,
+    row.hasActivities ?? null,
+    row.totalSalesValue ?? null,
+    row.totalPayableVat ?? null,
+    row.totalPayableSd ?? null,
+    row.totalInputTaxCreditValue ?? null,
+    row.totalInputTaxCreditVat ?? null,
+    row.increasingAdjustment ?? null,
+    row.decreasingAdjustment ?? null,
+    row.netPayableVat ?? null,
+    row.netPayableSd ?? null,
+    row.finePenalty ?? null,
+    row.depositedVat ?? null,
+    row.depositedSd ?? null,
+    row.closingBalanceVat ?? null,
+    row.closingBalanceSd ?? null,
+    row.vdsIncreasing ?? null,
+    row.vdsDecreasing ?? null,
+    row.advancedTaxPaid ?? null,
+    row.submissionDate ?? null,
+    row.lastAmendmentDate ?? null,
+    row.rawJson ?? null,
+    row.uploadedBy ?? null
+  ];
+}
 
 export const parse: Handler = async (c: any) => {
   try {
@@ -36,34 +140,10 @@ export const parse: Handler = async (c: any) => {
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const workbook = xlsx.read(buffer, { type: "buffer", cellDates: true });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) return c.json({ error: "No sheets found in Excel file." }, 400);
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) return c.json({ error: "Sheet could not be read." }, 400);
-
-    const rawMatrix = xlsx.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: null, raw: false });
-    const rawMatrixDates = xlsx.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: null, raw: true });
-
-    if (!rawMatrix || rawMatrix.length === 0) {
-      return c.json({ error: "The uploaded file is empty." }, 400);
-    }
-
-    if (rawMatrix.length > maxRows + 5) {
-      return c.json({ error: `File contains too many rows. Maximum allowed is ${maxRows.toLocaleString()} data rows.` }, 400);
-    }
 
     let dbMappings = await db.query.columnMappings.findMany({
       where: (mappings: any, { or, eq }: any) => or(eq(mappings.module, "return_data"), eq(mappings.module, "return"))
     });
-
-    const defaultEntries = Object.entries(DEFAULT_RETURN_DATA_MAPPINGS).map(([dbColumn, excelHeader]) => ({
-      id: 0,
-      module: "return_data",
-      dbColumn,
-      excelHeader,
-      createdAt: new Date()
-    }));
 
     if (dbMappings.length === 0) {
       dbMappings = Object.entries(DEFAULT_RETURN_DATA_MAPPINGS).map(([dbColumn, excelHeader]) => ({
@@ -75,128 +155,30 @@ export const parse: Handler = async (c: any) => {
       }));
     }
 
-    const mappingValues = dbMappings.map((m: any) => (m.excelHeader || "").trim().toLowerCase()).filter(Boolean);
+    // §3.2 — read + map the workbook on a worker thread so a large file cannot
+    // block the HTTP event loop. The worker reproduces the previous inline logic.
+    const parsed = await parseReturnWorkbook({
+      buffer,
+      mappings: dbMappings.map((m: any) => ({ dbColumn: m.dbColumn, excelHeader: m.excelHeader })),
+      maxRows
+    });
 
-    let headerRowIndex = 0;
-    let maxMatches = 0;
-    for (let i = 0; i < Math.min(20, rawMatrix.length); i++) {
-      const row = rawMatrix[i];
-      if (!Array.isArray(row)) continue;
-      let matches = 0;
-      for (const cell of row) {
-        if (typeof cell === "string") {
-          if (
-            mappingValues.includes(
-              cell
-                .replace(/\r?\n|\r/g, " ")
-                .trim()
-                .toLowerCase()
-            )
-          )
-            matches++;
-        }
-      }
-      if (matches > maxMatches) {
-        maxMatches = matches;
-        headerRowIndex = i;
+    if (isParseError(parsed)) {
+      switch (parsed.code) {
+        case "NO_SHEET":
+          return c.json({ error: "No sheets found in Excel file." }, 400);
+        case "NO_WORKSHEET":
+          return c.json({ error: "Sheet could not be read." }, 400);
+        case "EMPTY":
+          return c.json({ error: "The uploaded file is empty." }, 400);
+        case "TOO_MANY_ROWS":
+          return c.json({ error: `File contains too many rows. Maximum allowed is ${maxRows.toLocaleString()} data rows.` }, 400);
+        default:
+          throw new Error(parsed.message || "Failed to process file.");
       }
     }
-    if (maxMatches === 0) headerRowIndex = 0;
 
-    const headers = rawMatrix[headerRowIndex] || [];
-    let dataStartIndex = headerRowIndex + 1;
-    if (dataStartIndex < rawMatrix.length) {
-      const nextRow = rawMatrix[dataStartIndex];
-      let parenthesisPatternCount = 0;
-      if (Array.isArray(nextRow)) {
-        for (const cell of nextRow) {
-          if (typeof cell === "string" && /^\(\s*\d+\s*\)$/.test(cell.trim())) parenthesisPatternCount++;
-          else if (typeof cell === "number" && cell < 0) parenthesisPatternCount++;
-        }
-      }
-      if (parenthesisPatternCount >= 2) dataStartIndex++;
-    }
-
-    const rawData = [];
-    for (let i = dataStartIndex; i < rawMatrix.length; i++) {
-      const rowArr = rawMatrix[i];
-      const rowArrDates = rawMatrixDates[i] || [];
-      if (!Array.isArray(rowArr)) continue;
-      if (rowArr.every((cell) => cell === null || cell === "")) continue;
-      const rowObj: any = {};
-      for (let j = 0; j < headers.length; j++) {
-        const header = headers[j];
-        if (header && typeof header === "string") {
-          const cleanHeader = header.replace(/\r?\n|\r/g, " ").trim();
-          let cellValue = rowArr[j];
-          if (rowArrDates[j] instanceof Date && !isNaN(rowArrDates[j].getTime())) {
-            const dObj = new Date(rowArrDates[j].getTime() + 4 * 60 * 60 * 1000);
-            const yyyy = dObj.getFullYear();
-            const mm = String(dObj.getMonth() + 1).padStart(2, "0");
-            const dd = String(dObj.getDate()).padStart(2, "0");
-            cellValue = `${yyyy}-${mm}-${dd}`;
-          }
-          rowObj[cleanHeader] = cellValue;
-        }
-      }
-      rawData.push(rowObj);
-    }
-
-    const processedData = [];
-    for (const row of rawData) {
-      // Filter: Only include rows where return form is "Mushak-9.1: Value Added Tax Return"
-      const formKey = Object.keys(row).find((k) => {
-        const lower = k.trim().toLowerCase();
-        return lower === "name of return form" || lower === "return form" || lower === "form name";
-      });
-      if (formKey) {
-        const formVal = String(row[formKey] || "").trim();
-        if (formVal !== "Mushak-9.1: Value Added Tax Return") {
-          continue;
-        }
-      }
-
-      const mappedRow: any = {};
-      let hasValidData = false;
-      if (dbMappings.length > 0) {
-        dbMappings.forEach((mapping: any) => {
-          const targetHeaders = mapping.excelHeader.split(",").map((s: string) => s.trim().toLowerCase());
-          const combinedValues: string[] = [];
-          targetHeaders.forEach((th: string) => {
-            const rowKey = Object.keys(row).find((k) => k.trim().toLowerCase() === th);
-            if (rowKey && row[rowKey] !== undefined && row[rowKey] !== null) {
-              combinedValues.push(String(row[rowKey]));
-            }
-          });
-          if (combinedValues.length > 0) {
-            mappedRow[mapping.dbColumn] = combinedValues.join(", ");
-            hasValidData = true;
-          }
-        });
-      } else {
-        hasValidData = true;
-      }
-      if (!hasValidData) continue;
-
-      // Ignore Excel footer / summary / blank rows that have no BIN, no submission ID, and no tax period
-      const rawBin = mappedRow.bin ? String(mappedRow.bin).trim() : "";
-      const rawSub = mappedRow.submission_id ? String(mappedRow.submission_id).trim() : "";
-      const rawPeriod = mappedRow.tax_period ? String(mappedRow.tax_period).trim() : "";
-      
-      if (!rawBin && !rawSub && !rawPeriod) {
-        continue;
-      }
-
-      // Also ignore if the cell is a summary footer like "Total" or "Grand Total"
-      if (rawBin.toLowerCase() === "total" || rawBin.toLowerCase() === "grand total" ||
-          rawSub.toLowerCase() === "total" || rawSub.toLowerCase() === "grand total") {
-        continue;
-      }
-
-      mappedRow.rawJson = JSON.stringify(row);
-      mappedRow.tempId = Math.random().toString(36).substring(2, 11);
-      processedData.push(mappedRow);
-    }
+    const processedData = parsed.data;
 
     // --- Step 1 Enforcement: Filter uploaded returns to only include BINs registered in bin_data table ---
     const fileBins = Array.from(new Set(processedData.map((r: any) => r.bin).filter(Boolean)));
@@ -279,6 +261,50 @@ export const parse: Handler = async (c: any) => {
   }
 };
 
+/**
+ * §3.1 — Opt-in asynchronous Return import. Stores the upload on the tmp disk and
+ * returns a job id immediately; the `return_import` job runs the same parse+save
+ * pipeline in the background. Clients poll `GET /api/jobs/:id`.
+ */
+export const importAsync: Handler = async (c: any) => {
+  try {
+    const user = c.get("auth");
+    if (!user?.id) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const body = await c.req.parseBody();
+    const file = body["file"];
+
+    if (!file || !(file instanceof File)) {
+      return c.json({ error: "No valid file uploaded." }, 400);
+    }
+
+    const allowedMimeTypes = ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel"];
+    if (!allowedMimeTypes.includes(file.type) && !file.name.endsWith(".xls") && !file.name.endsWith(".xlsx")) {
+      return c.json({ error: "Only Excel files (.xlsx, .xls) are allowed." }, 400);
+    }
+
+    const cfg = await getSettings(["common_max_file_size_mb", "max_file_size_mb"]);
+    const maxSizeMb = parseFloat(cfg["common_max_file_size_mb"] || cfg["max_file_size_mb"] || "50");
+    if (file.size > maxSizeMb * 1024 * 1024) {
+      return c.json({ error: `File size exceeds the maximum allowed ${maxSizeMb}MB.` }, 400);
+    }
+
+    const fileKey = await storage.disk("tmp").putFile("imports", file);
+    const jobId = await enqueueJob(
+      RETURN_IMPORT_JOB,
+      { fileKey, fileName: file.name, mimeType: file.type, createdBy: user.id },
+      { createdBy: user.id, maxAttempts: 2 }
+    );
+
+    return c.json({ message: "Import queued.", jobId, status: "pending", statusUrl: `/api/jobs/${jobId}` }, 202);
+  } catch (error: any) {
+    console.error("Async Import Error:", error);
+    return c.json({ error: "Failed to queue import." }, 500);
+  }
+};
+
 export const save: Handler = async (c: any) => {
   try {
     const { data } = await c.req.json();
@@ -339,6 +365,17 @@ export const save: Handler = async (c: any) => {
     const circleMap = new Map<string, number>();
     existingCircles.forEach((c: any) => circleMap.set(`${c.name.toLowerCase()}_${c.divisionId}`, c.id));
 
+    // Track numeric cells that had a value but could not be parsed, so silent
+    // data loss is visible to the user instead of becoming NULL.
+    let skippedNumericFields = 0;
+    const toNumeric = (value: any): string | null => {
+      const parsed = parseNumeric(value);
+      if (parsed === null && value !== null && value !== undefined && String(value).trim() !== "") {
+        skippedNumericFields++;
+      }
+      return parsed;
+    };
+
     const toInsert = data
       .map((row: any) => {
         const divName = (row.division || "").toString().trim();
@@ -358,23 +395,23 @@ export const save: Handler = async (c: any) => {
           submissionId: row.submission_id ? String(row.submission_id).trim() : null,
           taxPeriod: taxPeriodDate,
           hasActivities: row.has_activities ? String(row.has_activities).trim() : null,
-          totalSalesValue: parseNumeric(row.total_sales_value),
-          totalPayableVat: parseNumeric(row.total_payable_vat),
-          totalPayableSd: parseNumeric(row.total_payable_sd),
-          totalInputTaxCreditValue: parseNumeric(row.total_input_tax_credit_value),
-          totalInputTaxCreditVat: parseNumeric(row.total_input_tax_credit_vat),
-          increasingAdjustment: parseNumeric(row.increasing_adjustment),
-          decreasingAdjustment: parseNumeric(row.decreasing_adjustment),
-          netPayableVat: parseNumeric(row.net_payable_vat),
-          netPayableSd: parseNumeric(row.net_payable_sd),
-          finePenalty: parseNumeric(row.fine_penalty),
-          depositedVat: parseNumeric(row.deposited_vat),
-          depositedSd: parseNumeric(row.deposited_sd),
-          closingBalanceVat: parseNumeric(row.closing_balance_vat),
-          closingBalanceSd: parseNumeric(row.closing_balance_sd),
-          vdsIncreasing: parseNumeric(row.vds_increasing),
-          vdsDecreasing: parseNumeric(row.vds_decreasing),
-          advancedTaxPaid: parseNumeric(row.advanced_tax_paid),
+          totalSalesValue: toNumeric(row.total_sales_value),
+          totalPayableVat: toNumeric(row.total_payable_vat),
+          totalPayableSd: toNumeric(row.total_payable_sd),
+          totalInputTaxCreditValue: toNumeric(row.total_input_tax_credit_value),
+          totalInputTaxCreditVat: toNumeric(row.total_input_tax_credit_vat),
+          increasingAdjustment: toNumeric(row.increasing_adjustment),
+          decreasingAdjustment: toNumeric(row.decreasing_adjustment),
+          netPayableVat: toNumeric(row.net_payable_vat),
+          netPayableSd: toNumeric(row.net_payable_sd),
+          finePenalty: toNumeric(row.fine_penalty),
+          depositedVat: toNumeric(row.deposited_vat),
+          depositedSd: toNumeric(row.deposited_sd),
+          closingBalanceVat: toNumeric(row.closing_balance_vat),
+          closingBalanceSd: toNumeric(row.closing_balance_sd),
+          vdsIncreasing: toNumeric(row.vds_increasing),
+          vdsDecreasing: toNumeric(row.vds_decreasing),
+          advancedTaxPaid: toNumeric(row.advanced_tax_paid),
           submissionDate: row.submission_date ? String(row.submission_date).trim() : null,
           lastAmendmentDate: row.last_amendment_date ? String(row.last_amendment_date).trim() : null,
           rawJson: row.rawJson || null,
@@ -445,47 +482,67 @@ export const save: Handler = async (c: any) => {
       }
       const deduplicatedReturns = Array.from(deduplicatedReturnMap.values());
 
-      const batchSize = 500;
-      for (let i = 0; i < deduplicatedReturns.length; i += batchSize) {
-        const batch = deduplicatedReturns.slice(i, i + batchSize);
-        await db
-          .insert(returnData)
-          .values(batch)
-          .onConflictDoUpdate({
-            target: [returnData.bin, returnData.taxPeriod],
-            set: {
-              submissionId: sql`EXCLUDED.submission_id`,
-              hasActivities: sql`EXCLUDED.has_activities`,
-              totalSalesValue: sql`EXCLUDED.total_sales_value`,
-              totalPayableVat: sql`EXCLUDED.total_payable_vat`,
-              totalPayableSd: sql`EXCLUDED.total_payable_sd`,
-              totalInputTaxCreditValue: sql`EXCLUDED.total_input_tax_credit_value`,
-              totalInputTaxCreditVat: sql`EXCLUDED.total_input_tax_credit_vat`,
-              increasingAdjustment: sql`EXCLUDED.increasing_adjustment`,
-              decreasingAdjustment: sql`EXCLUDED.decreasing_adjustment`,
-              netPayableVat: sql`EXCLUDED.net_payable_vat`,
-              netPayableSd: sql`EXCLUDED.net_payable_sd`,
-              finePenalty: sql`EXCLUDED.fine_penalty`,
-              depositedVat: sql`EXCLUDED.deposited_vat`,
-              depositedSd: sql`EXCLUDED.deposited_sd`,
-              closingBalanceVat: sql`EXCLUDED.closing_balance_vat`,
-              closingBalanceSd: sql`EXCLUDED.closing_balance_sd`,
-              vdsIncreasing: sql`EXCLUDED.vds_increasing`,
-              vdsDecreasing: sql`EXCLUDED.vds_decreasing`,
-              advancedTaxPaid: sql`EXCLUDED.advanced_tax_paid`,
-              submissionDate: sql`EXCLUDED.submission_date`,
-              lastAmendmentDate: sql`EXCLUDED.last_amendment_date`,
-              circleId: sql`EXCLUDED.circle_id`,
-              divisionId: sql`EXCLUDED.division_id`,
-              rawJson: sql`EXCLUDED.raw_json`
-            }
-          });
+      if (bulkCopySupported()) {
+        // §3.3 — One COPY into the UNLOGGED staging table + a single set-based
+        // merge. Far fewer round-trips/plans than hundreds of 500-row upserts.
+        await copyUpsert({
+          stagingTable: RETURN_DATA_COPY.stagingTable,
+          targetTable: RETURN_DATA_COPY.targetTable,
+          columns: [...RETURN_DATA_COPY.columns],
+          conflictColumns: [...RETURN_DATA_COPY.conflictColumns],
+          updateColumns: [...RETURN_DATA_COPY.updateColumns],
+          rows: deduplicatedReturns.map(toReturnDataCopyRow)
+        });
+      } else {
+        const batchSize = 500;
+        // Fallback for non-PostgreSQL dialects: one atomic transaction per import
+        // with `synchronous_commit = off`, so a failed batch rolls the whole
+        // import back instead of leaving it partial.
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`SET LOCAL synchronous_commit = off`);
+          for (let i = 0; i < deduplicatedReturns.length; i += batchSize) {
+            const batch = deduplicatedReturns.slice(i, i + batchSize);
+            await tx
+              .insert(returnData)
+              .values(batch)
+              .onConflictDoUpdate({
+                target: [returnData.bin, returnData.taxPeriod],
+                set: {
+                  submissionId: sql`EXCLUDED.submission_id`,
+                  hasActivities: sql`EXCLUDED.has_activities`,
+                  totalSalesValue: sql`EXCLUDED.total_sales_value`,
+                  totalPayableVat: sql`EXCLUDED.total_payable_vat`,
+                  totalPayableSd: sql`EXCLUDED.total_payable_sd`,
+                  totalInputTaxCreditValue: sql`EXCLUDED.total_input_tax_credit_value`,
+                  totalInputTaxCreditVat: sql`EXCLUDED.total_input_tax_credit_vat`,
+                  increasingAdjustment: sql`EXCLUDED.increasing_adjustment`,
+                  decreasingAdjustment: sql`EXCLUDED.decreasing_adjustment`,
+                  netPayableVat: sql`EXCLUDED.net_payable_vat`,
+                  netPayableSd: sql`EXCLUDED.net_payable_sd`,
+                  finePenalty: sql`EXCLUDED.fine_penalty`,
+                  depositedVat: sql`EXCLUDED.deposited_vat`,
+                  depositedSd: sql`EXCLUDED.deposited_sd`,
+                  closingBalanceVat: sql`EXCLUDED.closing_balance_vat`,
+                  closingBalanceSd: sql`EXCLUDED.closing_balance_sd`,
+                  vdsIncreasing: sql`EXCLUDED.vds_increasing`,
+                  vdsDecreasing: sql`EXCLUDED.vds_decreasing`,
+                  advancedTaxPaid: sql`EXCLUDED.advanced_tax_paid`,
+                  submissionDate: sql`EXCLUDED.submission_date`,
+                  lastAmendmentDate: sql`EXCLUDED.last_amendment_date`,
+                  circleId: sql`EXCLUDED.circle_id`,
+                  divisionId: sql`EXCLUDED.division_id`,
+                  rawJson: sql`EXCLUDED.raw_json`
+                }
+              });
+          }
+        });
       }
-
-      return c.json({ message: "Data saved successfully.", insertedRows: deduplicatedReturns.length });
+      await cache.forgetPattern("return-data:*");
+      await schedulePostImportMaintenance("return");
+      return c.json({ message: "Data saved successfully.", insertedRows: deduplicatedReturns.length, skippedNumericFields });
     }
 
-    return c.json({ message: "Data saved successfully.", insertedRows: 0 });
+    return c.json({ message: "Data saved successfully.", insertedRows: 0, skippedNumericFields });
   } catch (error: any) {
     console.error("Save Error:", error);
     return c.json({ error: error.message || "Failed to save data." }, 500);
@@ -501,9 +558,13 @@ export const deleteAll: Handler = async (c: any) => {
 
     if (isAdmin) {
       const result = await db.delete(returnData).returning({ id: returnData.id });
+      await cache.forgetPattern("return-data:*");
+      await schedulePostImportMaintenance("return");
       return c.json({ message: `Deleted ${result.length} records successfully.`, deletedCount: result.length });
     } else {
       const result = await db.delete(returnData).where(eq(returnData.uploadedBy, user.id)).returning({ id: returnData.id });
+      await cache.forgetPattern("return-data:*");
+      await schedulePostImportMaintenance("return");
       return c.json({ message: `Deleted ${result.length} of your uploaded records.`, deletedCount: result.length });
     }
   } catch (error: any) {

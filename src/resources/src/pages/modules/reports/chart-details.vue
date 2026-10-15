@@ -176,7 +176,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from '@/plugins/axios';
-import * as XLSX from 'xlsx';
+import { loadXLSX } from '@/utils/xlsx';
 
 const route = useRoute();
 const router = useRouter();
@@ -236,7 +236,8 @@ const printReport = () => {
   window.print();
 };
 
-const downloadExcel = () => {
+const downloadExcel = async () => {
+  const XLSX = await loadXLSX();
   try {
     const ws_data: any[][] = [];
     let cols: any[] = [];

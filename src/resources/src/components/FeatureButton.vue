@@ -1,7 +1,7 @@
 <template></template>
 
 <script setup lang="ts">
-import { inject, onBeforeUnmount, onMounted, useAttrs, useSlots } from "vue";
+import { inject, onBeforeUnmount, onMounted, useAttrs } from "vue";
 
 defineOptions({ name: "FeatureButton", inheritAttrs: false });
 
@@ -26,7 +26,7 @@ interface ButtonEntry {
 }
 
 const featureButtons = inject<ButtonEntry[]>("featureButtons")!;
-const slots = useSlots();
+const slots = defineSlots<{ default?: () => any[] }>();
 const fallthroughAttrs = useAttrs();
 
 const id = Symbol();

@@ -5,7 +5,11 @@ import {
   getUserApprovedCircleIds,
   resolveAllowedCircleIds,
   extractRows,
-  parseAreaParam
+  parseAreaParam,
+  computeCompliance,
+  getDueCutoff,
+  monthRange,
+  areaOverlap
 } from "../utils/helpers.js";
 
 export const drilldownEntities: Handler = async (c: any) => {
@@ -55,7 +59,8 @@ export const drilldownEntities: Handler = async (c: any) => {
     }
 
     if (fromDate && toDate) {
-      baseFilterClause = sql`${baseFilterClause} AND cast("return_data"."tax_period" as date) >= cast(to_date(${fromDate}, 'YYYY-MM') as date) AND cast("return_data"."tax_period" as date) <= (cast(to_date(${toDate}, 'YYYY-MM') as date) + interval '1 month' - interval '1 day')`;
+      // Half-open range on the bare column so the (tax_period) index is usable.
+      baseFilterClause = sql`${baseFilterClause} AND ${monthRange('"return_data"."tax_period"', fromDate, toDate)}`;
     }
 
     // Category Value filtering
@@ -73,20 +78,10 @@ export const drilldownEntities: Handler = async (c: any) => {
       }
     }
 
-    // Area filters on top of base filter
-    let filterClause = sql`${baseFilterClause}`;
-    if (majorAreas.length > 0) {
-      const orParts = majorAreas.map((a: string) => sql`"bin_data"."major_area" ILIKE ${"%" + a + "%"}`);
-      filterClause = sql`${filterClause} AND (${sql.join(orParts, sql` OR `)})`;
-    }
-    if (mfgAreas.length > 0) {
-      const orParts = mfgAreas.map((a: string) => sql`"bin_data"."manufacturing_area" ILIKE ${"%" + a + "%"}`);
-      filterClause = sql`${filterClause} AND (${sql.join(orParts, sql` OR `)})`;
-    }
-    if (serviceAreas.length > 0) {
-      const orParts = serviceAreas.map((a: string) => sql`"bin_data"."service_area" ILIKE ${"%" + a + "%"}`);
-      filterClause = sql`${filterClause} AND (${sql.join(orParts, sql` OR `)})`;
-    }
+    // Area filters on top of base filter. Normalized arrays + GIN overlap keep
+    // the multi-select exact and index-backed (the old ILIKE OR-chain was a
+    // sequential scan and matched substrings, e.g. "Trading" inside "TradingXyz").
+    const filterClause = sql`${baseFilterClause} AND ${areaOverlap('"bin_data"."major_areas"', majorAreas)} AND ${areaOverlap('"bin_data"."manufacturing_areas"', mfgAreas)} AND ${areaOverlap('"bin_data"."service_areas"', serviceAreas)}`;
 
     // 1. Fetch filtered entities
     const query = sql`
@@ -161,15 +156,17 @@ export const drilldownEntities: Handler = async (c: any) => {
     // 2. Fetch available area options strictly belonging to the institutions in this drilldown context
     const areasQuery = sql`
       SELECT DISTINCT
-        "bin_data"."major_area" as "major",
-        "bin_data"."manufacturing_area" as "mfg",
-        "bin_data"."service_area" as "service"
+        "bin_data"."major_areas" as "majors",
+        "bin_data"."manufacturing_areas" as "mfgs",
+        "bin_data"."service_areas" as "services"
       FROM "return_data"
       INNER JOIN "bin_data" ON "return_data"."bin" = "bin_data"."bin"
-      LEFT JOIN "circles" ON "return_data"."circle_id" = "circles"."id"
-      LEFT JOIN "police_stations" ON "bin_data"."police_station_id" = "police_stations"."id"
       WHERE ${baseFilterClause}
-        AND ("bin_data"."major_area" IS NOT NULL OR "bin_data"."manufacturing_area" IS NOT NULL OR "bin_data"."service_area" IS NOT NULL)
+        AND (
+          "bin_data"."major_areas" IS NOT NULL
+          OR "bin_data"."manufacturing_areas" IS NOT NULL
+          OR "bin_data"."service_areas" IS NOT NULL
+        )
     `;
     const areaRows = extractRows(await db.execute(areasQuery));
     const majorSet = new Set<string>();
@@ -179,18 +176,11 @@ export const drilldownEntities: Handler = async (c: any) => {
     const drilldownRelKeySet = new Set<string>();
 
     for (const r of areaRows) {
-      const majors = (r.major || "")
-        .split(";")
-        .map((s: string) => s.trim())
-        .filter((s: string) => Boolean(s) && s !== "None" && s !== "N/A");
-      const mfgs = (r.mfg || "")
-        .split(";")
-        .map((s: string) => s.trim())
-        .filter((s: string) => Boolean(s) && s !== "None" && s !== "N/A");
-      const services = (r.service || "")
-        .split(";")
-        .map((s: string) => s.trim())
-        .filter((s: string) => Boolean(s) && s !== "None" && s !== "N/A");
+      // The `*_areas` columns are already normalized tokens (semicolon-split,
+      // trimmed, without None/N/A), so no client-side parsing is needed.
+      const majors: string[] = Array.isArray(r.majors) ? r.majors : [];
+      const mfgs: string[] = Array.isArray(r.mfgs) ? r.mfgs : [];
+      const services: string[] = Array.isArray(r.services) ? r.services : [];
 
       majors.forEach((s) => majorSet.add(s));
       mfgs.forEach((s) => mfgSet.add(s));
@@ -247,6 +237,15 @@ export const entityTrends: Handler = async (c: any) => {
   }
 
   try {
+    const user = c.get("auth");
+    const approvedCircleIds = await getUserApprovedCircleIds(user);
+    if (approvedCircleIds !== null && approvedCircleIds.length === 0) {
+      return c.json({ error: "Forbidden: no approved offices" }, 403);
+    }
+    const circleScope = approvedCircleIds
+      ? sql`AND "bin_data"."circle_id" IN (${sql.join(approvedCircleIds.map((id: number) => sql`${id}`), sql`, `)})`
+      : sql``;
+
     // 1. Fetch entity master details
     const masterQuery = sql`
       SELECT 
@@ -267,9 +266,13 @@ export const entityTrends: Handler = async (c: any) => {
       LEFT JOIN "circles" ON "bin_data"."circle_id" = "circles"."id"
       LEFT JOIN "police_stations" ON "bin_data"."police_station_id" = "police_stations"."id"
       WHERE "bin_data"."bin" = ${bin}
+      ${circleScope}
       LIMIT 1
     `;
     const masterRows = extractRows(await db.execute(masterQuery));
+    if (approvedCircleIds !== null && masterRows.length === 0) {
+      return c.json({ error: "Forbidden: entity is outside your approved offices" }, 403);
+    }
     let entityInfo = masterRows[0];
     if (!entityInfo) {
       entityInfo = {
@@ -371,33 +374,17 @@ export const entityTrends: Handler = async (c: any) => {
     }
     const yearly = Object.values(yearlyMap);
 
-    // 3. Compute Compliance / Filing Statistics
+    // 3. Compute Compliance / Filing Statistics (shared, deadline-aware helper)
     const maxPeriodQuery = sql`SELECT to_char(MAX("tax_period"), 'YYYY-MM') as max_period FROM "return_data"`;
     const maxPeriodRows = extractRows(await db.execute(maxPeriodQuery));
-    const latestPeriodStr = maxPeriodRows[0]?.max_period || "";
+    const latestDataPeriod = maxPeriodRows[0]?.max_period || "";
+    const dueCutoff = getDueCutoff(latestDataPeriod);
 
-    let totalDue = monthly.length;
-    if (entityInfo.binIssueDate && entityInfo.binIssueDate !== "N/A" && latestPeriodStr) {
-      const [issueYear, issueMonth] = entityInfo.binIssueDate.split("-").map(Number);
-      const [latestYear, latestMonth] = latestPeriodStr.split("-").map(Number);
-      if (!isNaN(issueYear) && !isNaN(issueMonth) && !isNaN(latestYear) && !isNaN(latestMonth)) {
-        const diffMonths = (latestYear - issueYear) * 12 + (latestMonth - issueMonth) + 1;
-        totalDue = Math.max(diffMonths, monthly.length, 1);
-      }
-    }
-
-    const activityYes = monthly.filter((m: any) => m.hasActivities === "Yes").length;
-    const activityNo = monthly.filter((m: any) => m.hasActivities === "No" || !m.hasActivities).length;
-    const nonFiled = Math.max(0, totalDue - monthly.length);
-
-    const compliance = {
-      binIssueDate: entityInfo.binIssueDate || "N/A",
-      totalDue,
-      totalSubmitted: monthly.length,
-      activityYes,
-      activityNo,
-      nonFiled
-    };
+    const compliance = computeCompliance({
+      binIssueDate: entityInfo.binIssueDate,
+      periods: returnRows.map((r: any) => ({ period: r.period, hasActivities: r.hasActivities })),
+      lastDuePeriod: dueCutoff
+    });
 
     return c.json({
       data: {
@@ -420,6 +407,15 @@ export const entityDetailsReport: Handler = async (c: any) => {
   }
 
   try {
+    const user = c.get("auth");
+    const approvedCircleIds = await getUserApprovedCircleIds(user);
+    if (approvedCircleIds !== null && approvedCircleIds.length === 0) {
+      return c.json({ error: "Forbidden: no approved offices" }, 403);
+    }
+    const circleScope = approvedCircleIds
+      ? sql`AND "bin_data"."circle_id" IN (${sql.join(approvedCircleIds.map((id: number) => sql`${id}`), sql`, `)})`
+      : sql``;
+
     // 1. Fetch Entity Profile
     const masterQuery = sql`
       SELECT 
@@ -442,9 +438,13 @@ export const entityDetailsReport: Handler = async (c: any) => {
       LEFT JOIN "divisions" ON "circles"."division_id" = "divisions"."id"
       LEFT JOIN "police_stations" ON "bin_data"."police_station_id" = "police_stations"."id"
       WHERE "bin_data"."bin" = ${bin}
+      ${circleScope}
       LIMIT 1
     `;
     const masterRows = extractRows(await db.execute(masterQuery));
+    if (approvedCircleIds !== null && masterRows.length === 0) {
+      return c.json({ error: "Forbidden: entity is outside your approved offices" }, 403);
+    }
     let entityInfo = masterRows[0] || {
       bin,
       entityName: "BIN: " + bin,
@@ -501,16 +501,12 @@ export const entityDetailsReport: Handler = async (c: any) => {
       }
     }
 
-    // 3. Determine 5 Fiscal Years
+    // 3. Determine the deadline-aware "as of" period and the 5 fiscal years
     const maxPeriodQuery = sql`SELECT to_char(MAX("tax_period"), 'YYYY-MM') as max_period FROM "return_data"`;
     const maxPeriodRows = extractRows(await db.execute(maxPeriodQuery));
-    const latestDbPeriod =
-      maxPeriodRows[0]?.max_period ||
-      (() => {
-        const now = new Date();
-        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-      })();
-    const [latestYr, latestMo] = latestDbPeriod.split("-").map(Number);
+    const latestDataPeriod = maxPeriodRows[0]?.max_period || "";
+    const dueCutoff = getDueCutoff(latestDataPeriod);
+    const [latestYr, latestMo] = dueCutoff.split("-").map(Number);
 
     const currentFyEndYear = latestMo >= 7 ? latestYr + 1 : latestYr;
     const fiscalYears: { key: string; label: string; startYear: number; endYear: number }[] = [];
@@ -593,7 +589,7 @@ export const entityDetailsReport: Handler = async (c: any) => {
       for (const mc of monthConfigs) {
         const calYear = fy.startYear + mc.offsetYear;
         const periodKey = `${calYear}-${String(mc.num).padStart(2, "0")}`;
-        const isFuture = periodKey > latestDbPeriod;
+        const isFuture = periodKey > dueCutoff;
         const r = returnsByPeriod.get(periodKey);
 
         let isRegistered = true;
@@ -784,29 +780,12 @@ export const entityDetailsReport: Handler = async (c: any) => {
       });
     }
 
-    // 4. Compliance Statistics
-    let totalDue = returnRows.length;
-    if (entityInfo.binIssueDate && entityInfo.binIssueDate !== "N/A" && latestDbPeriod) {
-      const [issueYear, issueMonth] = entityInfo.binIssueDate.split("-").map(Number);
-      if (!isNaN(issueYear) && !isNaN(issueMonth) && !isNaN(latestYr) && !isNaN(latestMo)) {
-        const diffMonths = (latestYr - issueYear) * 12 + (latestMo - issueMonth) + 1;
-        totalDue = Math.max(diffMonths, returnRows.length, 1);
-      }
-    }
-    const totalSubmitted = returnRows.length;
-    const activityYes = returnRows.filter((m: any) => m.hasActivities === "Yes").length;
-    const activityNo = returnRows.filter((m: any) => m.hasActivities === "No" || !m.hasActivities).length;
-    const nonFiled = Math.max(0, totalDue - totalSubmitted);
-
-    const compliance = {
-      binIssueDate: entityInfo.binIssueDate || "N/A",
-      totalDue,
-      totalSubmitted,
-      activityYes,
-      activityNo,
-      nonFiled,
-      complianceRate: totalDue > 0 ? ((totalSubmitted / totalDue) * 100).toFixed(1) : "100.0"
-    };
+    // 4. Compliance Statistics (single source of truth, deadline-aware)
+    const compliance = computeCompliance({
+      binIssueDate: entityInfo.binIssueDate,
+      periods: returnRows.map((r: any) => ({ period: r.period, hasActivities: r.hasActivities })),
+      lastDuePeriod: dueCutoff
+    });
 
     return c.json({
       data: {
@@ -816,7 +795,7 @@ export const entityDetailsReport: Handler = async (c: any) => {
         grid: fullGrid,
         grandTotal,
         discrepancies,
-        latestPeriod: latestDbPeriod
+        latestPeriod: dueCutoff
       }
     });
   } catch (error) {

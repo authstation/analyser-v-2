@@ -1,10 +1,10 @@
 import type { Handler } from "hono";
 import { db } from "@/framework/facade.js";
-import { and, eq, inArray, sql, or } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { binData } from "@/modules/bin-analyser/database/models/bin-analyser.js";
 import { returnData } from "@/modules/return-data-analyser/database/models/return-data.js";
 import { circles, policeStations } from "@/modules/settings/database/models/settings.js";
-import { getUserApprovedCircleIds, parseTaxPeriodRange, parseAreaParam } from "../utils/helpers.js";
+import { getUserApprovedCircleIds, parseTaxPeriodRange, parseAreaParam, areaOverlap } from "../utils/helpers.js";
 
 export const nonFilerList: Handler = async (c: any) => {
   const user = c.get("auth");
@@ -99,20 +99,17 @@ export const nonFilerList: Handler = async (c: any) => {
 
     const majorList = parseAreaParam(filterMajor);
     if (majorList.length > 0) {
-      const orClauses = majorList.map((v) => sql`${binData.majorAreaOfEconomicActivity} ILIKE ${"%" + v + "%"}`);
-      conditions.push(or(...orClauses)!);
+      conditions.push(areaOverlap('"bin_data"."major_areas"', majorList));
     }
 
     const mfgList = parseAreaParam(filterMfg);
     if (mfgList.length > 0) {
-      const orClauses = mfgList.map((v) => sql`${binData.areasOfManufacturing} ILIKE ${"%" + v + "%"}`);
-      conditions.push(or(...orClauses)!);
+      conditions.push(areaOverlap('"bin_data"."manufacturing_areas"', mfgList));
     }
 
     const serviceList = parseAreaParam(filterService);
     if (serviceList.length > 0) {
-      const orClauses = serviceList.map((v) => sql`${binData.areasOfService} ILIKE ${"%" + v + "%"}`);
-      conditions.push(or(...orClauses)!);
+      conditions.push(areaOverlap('"bin_data"."service_areas"', serviceList));
     }
 
     if (filterFromDate && filterFromDate.trim()) {

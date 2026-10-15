@@ -18,9 +18,11 @@ export {
 export {
   parse,
   save,
-  deleteAll
+  deleteAll,
+  importAsync
 } from './bin-import.controller.js';
 
 export {
-  exportData
+  exportData,
+  exportDrilldown
 } from './bin-export.controller.js';
