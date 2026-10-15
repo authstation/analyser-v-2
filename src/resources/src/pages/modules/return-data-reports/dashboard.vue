@@ -44,7 +44,7 @@
                   type="month"
                   class="form-control form-control-sm bg-dark text-light border-secondary"
                   v-model="filters.fromDate"
-                  @change="fetchAnalytics"
+                  @change="scheduleFetchAnalytics"
                 >
               </div>
               <div class="flex-grow-1" style="min-width: 0;">
@@ -53,7 +53,7 @@
                   type="month"
                   class="form-control form-control-sm bg-dark text-light border-secondary"
                   v-model="filters.toDate"
-                  @change="fetchAnalytics"
+                  @change="scheduleFetchAnalytics"
                 >
               </div>
               <div class="flex-shrink-0">
@@ -305,7 +305,7 @@
         <div class="card-header border-secondary text-light fw-bold fs-6 d-flex justify-content-between align-items-center">
           <div><i class="bi bi-shield-exclamation me-2 text-warning"></i> Risk Category Assessment</div>
           <div style="width: 150px;">
-            <select class="form-select form-select-sm bg-dark text-light border-secondary mb-0 shadow-sm" v-model="filters.topLimit" @change="fetchAnalytics">
+            <select class="form-select form-select-sm bg-dark text-light border-secondary mb-0 shadow-sm" v-model="filters.topLimit" @change="scheduleFetchAnalytics">
               <option value="All">All Entities</option>
               <option value="Top 10">Top 10</option>
               <option value="Top 20">Top 20</option>
@@ -411,7 +411,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from '@/plugins/axios';
 
@@ -423,6 +423,14 @@ const router = useRouter();
 
 const loading = ref(true);
 const analyticsData = ref<any>(null);
+
+// ─── Analytics request coalescing ───────────────────────────────────────────
+// Cascading filter mutations (circle -> police station -> major/mfg/service
+// area) would otherwise fire several overlapping /analytics requests. Debounce
+// them so the whole cascade results in a single network call.
+const ANALYTICS_DEBOUNCE_MS = 200;
+let analyticsTimer: ReturnType<typeof setTimeout> | undefined;
+let analyticsRequestSeq = 0;
 
 const getPrevMonthString = () => {
   const d = new Date();
@@ -436,8 +444,10 @@ const prevMonth = getPrevMonthString();
 const filters = ref({
   circleIds: [] as number[],
   policeStationIds: [] as number[],
-  fromDate: '',
-  toDate: '',
+  // Default to the latest completed tax period so the initial query stays
+  // tightly scoped (avoids scanning every year from 2019 to present).
+  fromDate: prevMonth,
+  toDate: prevMonth,
   topLimit: 'All'
 });
 
@@ -492,12 +502,12 @@ const resetAllFilters = () => {
   filters.value.circleIds = [];
   selectedPsNames.value = [];
   filters.value.policeStationIds = [];
-  filters.value.fromDate = '';
-  filters.value.toDate = '';
+  filters.value.fromDate = prevMonth;
+  filters.value.toDate = prevMonth;
   selectedMajorArea.value = [];
   selectedMfgArea.value = [];
   selectedServiceArea.value = [];
-  fetchAnalytics();
+  scheduleFetchAnalytics();
 };
 
 // Dependent Area Options: Major Area -> Mfg Area & Service Area
@@ -573,7 +583,9 @@ const fetchFiltersData = async () => {
   }
 };
 
-const fetchAnalytics = async () => {
+async function fetchAnalytics() {
+  const seq = ++analyticsRequestSeq;
+
   if (filters.value.fromDate && filters.value.toDate && filters.value.fromDate > filters.value.toDate) {
     alert("From Period cannot be later than To Period.");
     loading.value = false;
@@ -597,17 +609,33 @@ const fetchAnalytics = async () => {
     if (selectedMajorArea.value.length > 0) params.append('majorArea', selectedMajorArea.value.join('|||'));
     if (selectedMfgArea.value.length > 0) params.append('mfgArea', selectedMfgArea.value.join('|||'));
     if (selectedServiceArea.value.length > 0) params.append('serviceArea', selectedServiceArea.value.join('|||'));
-    
+
     url += params.toString();
     const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+    // Ignore stale responses that resolve after a newer request has started.
+    if (seq !== analyticsRequestSeq) return;
     analyticsData.value = response.data.data || response.data;
   } catch (error: any) {
+    if (seq !== analyticsRequestSeq) return;
     console.error('Failed to load analytics:', error);
     alert(error.response?.data?.error || 'Failed to load analytics');
   } finally {
-    loading.value = false;
+    // Only the newest request clears the spinner, and never while another
+    // debounced request is queued.
+    if (seq === analyticsRequestSeq && !analyticsTimer) loading.value = false;
   }
-};
+}
+
+// Debounced entry point used by all filter inputs/watchers so a cascade of
+// filter mutations results in exactly one /analytics request.
+function scheduleFetchAnalytics() {
+  loading.value = true;
+  if (analyticsTimer) clearTimeout(analyticsTimer);
+  analyticsTimer = setTimeout(() => {
+    analyticsTimer = undefined;
+    void fetchAnalytics();
+  }, ANALYTICS_DEBOUNCE_MS);
+}
 
 const metricsList = computed(() => {
   if (!analyticsData.value || !analyticsData.value.metrics) return [];
@@ -761,19 +789,19 @@ const openEntityDrilldown = (type: 'activity' | 'registration', value: string) =
 watch(() => filters.value.circleIds, () => {
   selectedPsNames.value = [];
   filters.value.policeStationIds = [];
-  fetchAnalytics();
+  scheduleFetchAnalytics();
 }, { deep: true });
 
 watch(() => filters.value.policeStationIds, () => {
-  fetchAnalytics();
+  scheduleFetchAnalytics();
 }, { deep: true });
 
 watch(() => filters.value.fromDate, () => {
-  fetchAnalytics();
+  scheduleFetchAnalytics();
 });
 
 watch(() => filters.value.toDate, () => {
-  fetchAnalytics();
+  scheduleFetchAnalytics();
 });
 
 // Watch area filters with cascading pruning
@@ -784,20 +812,25 @@ watch(selectedMajorArea, () => {
   const validService = new Set(uniqueServiceAreas.value);
   selectedServiceArea.value = selectedServiceArea.value.filter(s => validService.has(s));
 
-  fetchAnalytics();
+  scheduleFetchAnalytics();
 }, { deep: true });
 
 watch(selectedMfgArea, () => {
-  fetchAnalytics();
+  scheduleFetchAnalytics();
 }, { deep: true });
 
 watch(selectedServiceArea, () => {
-  fetchAnalytics();
+  scheduleFetchAnalytics();
 }, { deep: true });
 
 onMounted(async () => {
   await Promise.all([fetchFiltersData(), fetchAreaOptions()]);
+  // Initial load is not part of a filter cascade, so fetch immediately.
   await fetchAnalytics();
+});
+
+onBeforeUnmount(() => {
+  if (analyticsTimer) clearTimeout(analyticsTimer);
 });
 </script>
 
