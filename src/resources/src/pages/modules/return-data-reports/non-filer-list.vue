@@ -635,6 +635,20 @@ const formatDate = (dateStr: string | null) => {
   return `${day}.${month}.${year}`;
 };
 
+const formatEconomicActivity = (row: any) => {
+  const activities: string[] = [];
+  if (row.majorArea && String(row.majorArea).trim()) {
+    activities.push(String(row.majorArea).trim());
+  }
+  if (row.manufacturingArea && String(row.manufacturingArea).trim()) {
+    activities.push(String(row.manufacturingArea).trim());
+  }
+  if (row.serviceArea && String(row.serviceArea).trim()) {
+    activities.push(String(row.serviceArea).trim());
+  }
+  return activities.length > 0 ? activities.join(", ") : "";
+};
+
 const downloadExcel = () => {
   const data = filteredList.value;
   if (data.length === 0) return;
@@ -643,6 +657,9 @@ const downloadExcel = () => {
     "SL",
     "BIN",
     "Entity Name",
+    "Address",
+    "Economic Activity",
+    "Mobile",
     "Circle",
     "Police Station",
     "Status",
@@ -657,6 +674,9 @@ const downloadExcel = () => {
     ...data.map((row, idx) => {
       const bin = `"=""${row.bin || ""}"""`;
       const name = `"${(row.name || "").replace(/"/g, '""')}"`;
+      const address = `"${(row.address && row.address !== "N/A" ? row.address : "").replace(/"/g, '""')}"`;
+      const economicActivity = `"${formatEconomicActivity(row).replace(/"/g, '""')}"`;
+      const mobile = `"=""${row.mobile && row.mobile !== "-" ? row.mobile : ""}"""`;
       const circle = `"${(row.circleName || "").replace(/"/g, '""')}"`;
       const ps = `"${(row.policeStationName || "").replace(/"/g, '""')}"`;
       const status = `"${(row.binStatus || "").replace(/"/g, '""')}"`;
@@ -664,7 +684,7 @@ const downloadExcel = () => {
       const due = row.totalDueMonths || 0;
       const submitted = row.submittedCount || 0;
       const unfiled = row.grandTotalMonths || 0;
-      return `${idx + 1},${bin},${name},${circle},${ps},${status},${issueDate},${due},${submitted},${unfiled}`;
+      return `${idx + 1},${bin},${name},${address},${economicActivity},${mobile},${circle},${ps},${status},${issueDate},${due},${submitted},${unfiled}`;
     })
   ].join("\n");
 
