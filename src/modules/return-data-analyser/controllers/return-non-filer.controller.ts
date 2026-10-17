@@ -104,12 +104,20 @@ export const nonFilerList: Handler = async (c: any) => {
 
     const mfgList = parseAreaParam(filterMfg);
     if (mfgList.length > 0) {
-      conditions.push(areaOverlap('"bin_data"."manufacturing_areas"', mfgList));
+      // If user filters Mfg Areas, match entities with matching mfg areas OR entities that are not manufacturing (no mfg area)
+      const mfgOverlapSql = areaOverlap('"bin_data"."manufacturing_areas"', mfgList);
+      conditions.push(
+        sql`(${mfgOverlapSql} OR COALESCE(cardinality("bin_data"."manufacturing_areas"), 0) = 0)`
+      );
     }
 
     const serviceList = parseAreaParam(filterService);
     if (serviceList.length > 0) {
-      conditions.push(areaOverlap('"bin_data"."service_areas"', serviceList));
+      // If user filters Service Areas, match entities with matching service areas OR entities that are not services (no service area)
+      const srvOverlapSql = areaOverlap('"bin_data"."service_areas"', serviceList);
+      conditions.push(
+        sql`(${srvOverlapSql} OR COALESCE(cardinality("bin_data"."service_areas"), 0) = 0)`
+      );
     }
 
     if (filterFromDate && filterFromDate.trim()) {
