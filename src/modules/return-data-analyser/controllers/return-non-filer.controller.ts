@@ -18,6 +18,8 @@ export const nonFilerList: Handler = async (c: any) => {
     const filterMajor = c.req.query("major") || c.req.query("majorArea");
     const filterMfg = c.req.query("mfg") || c.req.query("manufacturingArea");
     const filterService = c.req.query("service") || c.req.query("serviceArea");
+    const filterExcludeMfg = c.req.query("excludeMfg");
+    const filterExcludeService = c.req.query("excludeService");
     const filterFromDate = c.req.query("fromIssueDate") || c.req.query("fromDate");
     const filterToDate = c.req.query("toIssueDate") || c.req.query("toDate");
     const filterFromTaxPeriod = c.req.query("fromTaxPeriod");
@@ -102,22 +104,26 @@ export const nonFilerList: Handler = async (c: any) => {
       conditions.push(areaOverlap('"bin_data"."major_areas"', majorList));
     }
 
+    const excludeMfgList = parseAreaParam(filterExcludeMfg);
     const mfgList = parseAreaParam(filterMfg);
-    if (mfgList.length > 0) {
-      // If user filters Mfg Areas, match entities with matching mfg areas OR entities that are not manufacturing (no mfg area)
-      const mfgOverlapSql = areaOverlap('"bin_data"."manufacturing_areas"', mfgList);
-      conditions.push(
-        sql`(${mfgOverlapSql} OR COALESCE(cardinality("bin_data"."manufacturing_areas"), 0) = 0)`
-      );
+    if (excludeMfgList.length > 0) {
+      // User unchecked specific mfg items: exclude any entity that has any of these mfg areas
+      const excludeOverlapSql = areaOverlap('"bin_data"."manufacturing_areas"', excludeMfgList);
+      conditions.push(sql`NOT (${excludeOverlapSql})`);
+    } else if (mfgList.length > 0) {
+      // User selected specific mfg items: strictly match those mfg items
+      conditions.push(areaOverlap('"bin_data"."manufacturing_areas"', mfgList));
     }
 
+    const excludeServiceList = parseAreaParam(filterExcludeService);
     const serviceList = parseAreaParam(filterService);
-    if (serviceList.length > 0) {
-      // If user filters Service Areas, match entities with matching service areas OR entities that are not services (no service area)
-      const srvOverlapSql = areaOverlap('"bin_data"."service_areas"', serviceList);
-      conditions.push(
-        sql`(${srvOverlapSql} OR COALESCE(cardinality("bin_data"."service_areas"), 0) = 0)`
-      );
+    if (excludeServiceList.length > 0) {
+      // User unchecked specific service items (e.g. Construction, Trading): exclude any entity that has any of these services
+      const excludeOverlapSql = areaOverlap('"bin_data"."service_areas"', excludeServiceList);
+      conditions.push(sql`NOT (${excludeOverlapSql})`);
+    } else if (serviceList.length > 0) {
+      // User selected specific service items: strictly match those service items
+      conditions.push(areaOverlap('"bin_data"."service_areas"', serviceList));
     }
 
     if (filterFromDate && filterFromDate.trim()) {
