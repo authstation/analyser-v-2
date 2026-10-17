@@ -102,8 +102,15 @@ export const filterOptions: Handler = async (c: any) => {
           .map((s: string) => s.trim())
           .filter(Boolean)
       : [];
+    const fromDate = c.req.query("fromIssueDate") || c.req.query("fromDate") || null;
+    const toDate = c.req.query("toIssueDate") || c.req.query("toDate") || null;
 
-    const data = await getFilterOptions({ approvedCircleIds, circles: circlesArr });
+    const data = await getFilterOptions({
+      approvedCircleIds,
+      circles: circlesArr,
+      fromDate: fromDate?.trim() || null,
+      toDate: toDate?.trim() || null
+    });
 
     return c.json(data);
   } catch (error) {

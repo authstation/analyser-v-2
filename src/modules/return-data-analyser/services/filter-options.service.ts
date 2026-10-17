@@ -24,16 +24,17 @@ export type FilterOptionsScope = {
   approvedCircleIds: number[] | null;
   /** Explicit circle names passed via `?circles=`/`?circle=`. */
   circles: string[];
+  /** Optional date range for date-aware dropdowns. */
+  fromDate?: string | null;
+  toDate?: string | null;
 };
 
 /**
- * Why: The dropdown payload depends only on the requested scope, never on the
- *      identity of the caller, so the key must encode the scope and nothing
- *      else — otherwise every user gets a private (unwarmable) cache entry.
+ * Why: The dropdown payload depends on the requested scope (circles + optional dates),
+ *      never on the identity of the caller, so the key encodes the scope.
  * When: Both the controller and the warmer build the same key.
  * Where: filter-options read path.
- * How: Canonical, order-independent rendering of the approved circle ids and
- *      the explicit circle names.
+ * How: Canonical, order-independent rendering of circle ids, circle names, and date bounds.
  */
 export function filterOptionsCacheKey(scope: FilterOptionsScope): string {
   const circleIds =
@@ -41,7 +42,8 @@ export function filterOptionsCacheKey(scope: FilterOptionsScope): string {
       ? "all"
       : scope.approvedCircleIds.slice().sort((a, b) => a - b).join("-") || "none";
   const circleNames = scope.circles.length ? scope.circles.slice().sort().join("|") : "all";
-  return `return-data:filter-options:${circleIds}:${circleNames}`;
+  const dateKey = `${scope.fromDate || "none"}_${scope.toDate || "none"}`;
+  return `return-data:filter-options:${circleIds}:${circleNames}:${dateKey}`;
 }
 
 /**
@@ -98,19 +100,56 @@ export async function buildFilterOptions(scope: FilterOptionsScope) {
       WHERE "forced_registration" IS NOT NULL AND "forced_registration" <> ''
       ORDER BY "name"
     `),
-    // §2.3: tokens come from the tiny dimension table instead of unnesting the
-    // activity arrays across every BIN row.
-    db.execute(sql`
-      SELECT
-        (SELECT array_agg(DISTINCT "major" ORDER BY "major") FROM "bin_area_dimension" WHERE "major" IS NOT NULL) AS "majors",
-        (SELECT array_agg(DISTINCT "mfg" ORDER BY "mfg") FROM "bin_area_dimension" WHERE "mfg" IS NOT NULL) AS "mfgs",
-        (SELECT array_agg(DISTINCT "service" ORDER BY "service") FROM "bin_area_dimension" WHERE "service" IS NOT NULL) AS "services"
-    `),
-    db.execute(sql`
-      SELECT DISTINCT "major", "mfg", "service"
-      FROM "bin_area_dimension"
-      ORDER BY "major", "mfg", "service"
-    `)
+    // §2.3: tokens come from the tiny dimension table when no date filter is passed,
+    // or dynamically computed from bin_data if date range is specified.
+    scope.fromDate || scope.toDate
+      ? db.execute(sql`
+          WITH filtered_bins AS (
+            SELECT "major_areas", "manufacturing_areas", "service_areas"
+            FROM "bin_data"
+            WHERE 1=1 ${circleScope}
+              ${scope.fromDate ? sql`AND "bin_issue_date" >= cast(${scope.fromDate + " 00:00:00"} as timestamp)` : sql``}
+              ${scope.toDate ? sql`AND "bin_issue_date" <= cast(${scope.toDate + " 23:59:59"} as timestamp)` : sql``}
+          )
+          SELECT
+            (SELECT array_agg(DISTINCT maj ORDER BY maj) FROM filtered_bins b, unnest(COALESCE(b."major_areas", '{}'::text[])) AS maj WHERE maj IS NOT NULL) AS "majors",
+            (SELECT array_agg(DISTINCT mf ORDER BY mf) FROM filtered_bins b, unnest(COALESCE(b."manufacturing_areas", '{}'::text[])) AS mf WHERE mf IS NOT NULL) AS "mfgs",
+            (SELECT array_agg(DISTINCT sv ORDER BY sv) FROM filtered_bins b, unnest(COALESCE(b."service_areas", '{}'::text[])) AS sv WHERE sv IS NOT NULL) AS "services"
+        `)
+      : db.execute(sql`
+          SELECT
+            (SELECT array_agg(DISTINCT "major" ORDER BY "major") FROM "bin_area_dimension" WHERE "major" IS NOT NULL) AS "majors",
+            (SELECT array_agg(DISTINCT "mfg" ORDER BY "mfg") FROM "bin_area_dimension" WHERE "mfg" IS NOT NULL) AS "mfgs",
+            (SELECT array_agg(DISTINCT "service" ORDER BY "service") FROM "bin_area_dimension" WHERE "service" IS NOT NULL) AS "services"
+        `),
+    scope.fromDate || scope.toDate
+      ? db.execute(sql`
+          WITH filtered_bins AS (
+            SELECT "major_areas", "manufacturing_areas", "service_areas"
+            FROM "bin_data"
+            WHERE 1=1 ${circleScope}
+              ${scope.fromDate ? sql`AND "bin_issue_date" >= cast(${scope.fromDate + " 00:00:00"} as timestamp)` : sql``}
+              ${scope.toDate ? sql`AND "bin_issue_date" <= cast(${scope.toDate + " 23:59:59"} as timestamp)` : sql``}
+          )
+          SELECT DISTINCT "major", "mfg", "service" FROM (
+            SELECT maj AS "major", mf AS "mfg", NULL::text AS "service"
+            FROM filtered_bins b, unnest(COALESCE(b."major_areas", '{}'::text[])) AS maj, unnest(COALESCE(b."manufacturing_areas", '{}'::text[])) AS mf
+            UNION
+            SELECT maj AS "major", NULL::text AS "mfg", sv AS "service"
+            FROM filtered_bins b, unnest(COALESCE(b."major_areas", '{}'::text[])) AS maj, unnest(COALESCE(b."service_areas", '{}'::text[])) AS sv
+            UNION
+            SELECT maj AS "major", NULL::text AS "mfg", NULL::text AS "service"
+            FROM filtered_bins b, unnest(COALESCE(b."major_areas", '{}'::text[])) AS maj
+            WHERE COALESCE(cardinality(b."manufacturing_areas"), 0) = 0
+              AND COALESCE(cardinality(b."service_areas"), 0) = 0
+          ) rel
+          ORDER BY "major", "mfg", "service"
+        `)
+      : db.execute(sql`
+          SELECT DISTINCT "major", "mfg", "service"
+          FROM "bin_area_dimension"
+          ORDER BY "major", "mfg", "service"
+        `)
   ]);
 
   const tokens = (extractRows(tokenSets)[0] || {}) as any;

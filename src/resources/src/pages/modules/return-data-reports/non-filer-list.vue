@@ -427,6 +427,13 @@ watch(fromIssueDate, (newVal) => {
   }
 });
 
+// Watch Issue Dates to dynamically refresh area dropdowns
+watch([fromIssueDate, toIssueDate], () => {
+  if (!isInitialMount.value) {
+    fetchFilterOptions();
+  }
+});
+
 // 2. From Tax Period watcher: if fromTaxPeriod > toTaxPeriod, reset toTaxPeriod
 watch(fromTaxPeriod, (newVal) => {
   if (newVal && toTaxPeriod.value && toTaxPeriod.value < newVal) {
@@ -517,18 +524,30 @@ const changePage = (p: number) => {
 
 const fetchFilterOptions = async () => {
   try {
-    const res = await axios.get("/api/return-data-analyser/filter-options");
+    const params = new URLSearchParams();
+    if (fromIssueDate.value) params.append("fromIssueDate", fromIssueDate.value);
+    if (toIssueDate.value) params.append("toIssueDate", toIssueDate.value);
+    if (selectedCircle.value.length > 0) params.append("circle", selectedCircle.value.join(","));
+
+    const queryStr = params.toString() ? `?${params.toString()}` : "";
+    const res = await axios.get(`/api/return-data-analyser/filter-options${queryStr}`);
     if (res.data) {
       const data = res.data.data || res.data;
-      uniqueCircles.value = (data.circles || []).map((c: any) => (typeof c === "string" ? c : c.name)).filter(Boolean);
-      uniquePoliceStations.value = (data.policeStations || []).map((p: any) => (typeof p === "string" ? p : p.name)).filter(Boolean);
-      if (data.statuses && data.statuses.length > 0) {
-        uniqueStatuses.value = data.statuses;
+      if (!fromIssueDate.value && !toIssueDate.value) {
+        uniqueCircles.value = (data.circles || []).map((c: any) => (typeof c === "string" ? c : c.name)).filter(Boolean);
+        uniquePoliceStations.value = (data.policeStations || []).map((p: any) => (typeof p === "string" ? p : p.name)).filter(Boolean);
+        if (data.statuses && data.statuses.length > 0) {
+          uniqueStatuses.value = data.statuses;
+        }
       }
       uniqueMajorAreas.value = data.majorAreas || [];
       uniqueMfgAreasBase.value = data.mfgAreas || [];
       uniqueServiceAreasBase.value = data.serviceAreas || [];
       areaRelations.value = data.areaRelations || [];
+
+      // Prune selected major areas if they are no longer in uniqueMajorAreas
+      const validMajorSet = new Set(uniqueMajorAreas.value);
+      selectedMajorArea.value = selectedMajorArea.value.filter((m) => validMajorSet.has(m));
     }
   } catch (error) {
     console.error("Failed to load filter options", error);
