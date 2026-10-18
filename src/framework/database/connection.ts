@@ -370,6 +370,32 @@ async function ensurePostgresTables(sql: any) {
     ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "link" varchar(500);
     ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "read_at" timestamp;
 
+    CREATE TABLE IF NOT EXISTS "letter_templates" (
+      "id" serial PRIMARY KEY,
+      "title" text NOT NULL,
+      "category" text DEFAULT 'non-filer-notice' NOT NULL,
+      "description" text,
+      "subject" text,
+      "reference" text,
+      "body_html" text NOT NULL,
+      "signatory_title" text,
+      "signatory_subtitle" text,
+      "cc_items" jsonb DEFAULT '[]'::jsonb,
+      "is_active" boolean DEFAULT true NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      "updated_at" timestamp DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "user_letter_drafts" (
+      "id" serial PRIMARY KEY,
+      "template_id" integer REFERENCES "letter_templates"("id") ON DELETE SET NULL,
+      "user_id" integer REFERENCES "users"("id") ON DELETE CASCADE NOT NULL,
+      "entity_bin" text,
+      "custom_data" jsonb NOT NULL,
+      "created_at" timestamp DEFAULT now() NOT NULL,
+      "updated_at" timestamp DEFAULT now() NOT NULL
+    );
+
     DO $$ BEGIN
       IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='notifications' AND column_name='message') THEN
         ALTER TABLE "notifications" ALTER COLUMN "message" DROP NOT NULL;

@@ -3,7 +3,7 @@ import { db } from "@/framework/facade.js";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { binData } from "@/modules/bin-analyser/database/models/bin-analyser.js";
 import { returnData } from "@/modules/return-data-analyser/database/models/return-data.js";
-import { circles, policeStations } from "@/modules/settings/database/models/settings.js";
+import { circles, policeStations, divisions } from "@/modules/settings/database/models/settings.js";
 import { getUserApprovedCircleIds, parseTaxPeriodRange, parseAreaParam, areaOverlap } from "../utils/helpers.js";
 
 export const nonFilerList: Handler = async (c: any) => {
@@ -157,11 +157,13 @@ export const nonFilerList: Handler = async (c: any) => {
         manufacturingArea: binData.areasOfManufacturing,
         serviceArea: binData.areasOfService,
         circleName: circles.name,
-        policeStationName: policeStations.name
+        policeStationName: policeStations.name,
+        divisionName: divisions.name
       })
       .from(binData)
       .leftJoin(circles, eq(binData.circleId, circles.id))
       .leftJoin(policeStations, eq(binData.policeStationId, policeStations.id))
+      .leftJoin(divisions, eq(binData.divisionId, divisions.id))
       .where(whereClause)
       .limit(50000);
 
@@ -256,6 +258,7 @@ export const nonFilerList: Handler = async (c: any) => {
           serviceArea: ent.serviceArea,
           circleName: ent.circleName,
           policeStationName: ent.policeStationName,
+          divisionName: ent.divisionName,
           binStatus: ent.binStatus
         });
       }
@@ -265,13 +268,16 @@ export const nonFilerList: Handler = async (c: any) => {
     results.sort((a, b) => b.grandTotalMonths - a.grandTotalMonths);
 
     // 5. Generate Monthly Breakdown Summary (Active BINs, Filers, Non-Filers, Rate)
-    const monthMap = new Map<string, {
-      monthKey: string;
-      monthLabel: string;
-      activeBins: number;
-      filers: number;
-      nonFilers: number;
-    }>();
+    const monthMap = new Map<
+      string,
+      {
+        monthKey: string;
+        monthLabel: string;
+        activeBins: number;
+        filers: number;
+        nonFilers: number;
+      }
+    >();
 
     let totalActiveBins = 0;
     let totalFilers = 0;

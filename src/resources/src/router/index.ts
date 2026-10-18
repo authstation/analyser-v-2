@@ -32,92 +32,151 @@ export const routes = [
         path: "/admin/users",
         name: "admin-users",
         component: () => import("@/pages/admin/users/index.vue"),
-        meta: { 
+        meta: {
           requiresAuth: true,
           requiresAdmin: true,
-          headerTitle: 'User Management',
-          headerIcon: 'bi-people-fill',
-          headerColor: 'text-primary'
+          headerTitle: "User Management",
+          headerIcon: "bi-people-fill",
+          headerColor: "text-primary"
         }
       },
       {
         path: "/admin/plans",
         name: "admin-plans",
         component: () => import("@/pages/admin/plans/index.vue"),
-        meta: { 
+        meta: {
           requiresAuth: true,
           requiresAdmin: true,
-          headerTitle: 'Subscription Plans',
-          headerIcon: 'bi-tags-fill',
-          headerColor: 'text-info'
+          headerTitle: "Subscription Plans",
+          headerIcon: "bi-tags-fill",
+          headerColor: "text-info"
         }
       },
       {
         path: "/admin/subscriptions",
         name: "admin-subscriptions",
         component: () => import("@/pages/admin/subscriptions/index.vue"),
-        meta: { 
+        meta: {
           requiresAuth: true,
           requiresAdmin: true,
-          headerTitle: 'Manage Subscriptions',
-          headerIcon: 'bi-card-checklist',
-          headerColor: 'text-success'
+          headerTitle: "Manage Subscriptions",
+          headerIcon: "bi-card-checklist",
+          headerColor: "text-success"
         }
       },
       {
         path: "/admin/settings",
         name: "admin-settings",
         component: () => import("@/pages/admin/settings/index.vue"),
-        meta: { 
+        meta: {
           requiresAuth: true,
           requiresAdmin: true,
-          headerTitle: 'Global Settings',
-          headerIcon: 'bi-gear-fill',
-          headerColor: 'text-light'
+          headerTitle: "Global Settings",
+          headerIcon: "bi-gear-fill",
+          headerColor: "text-light"
+        }
+      },
+      {
+        path: "/admin/letter-templates",
+        name: "admin-letter-templates",
+        component: () => import("@/pages/admin/letter-templates/index.vue"),
+        meta: {
+          requiresAuth: true,
+          requiresAdmin: true,
+          headerTitle: "Letter Templates",
+          headerIcon: "bi-file-earmark-richtext",
+          headerColor: "text-danger"
+        }
+      },
+      {
+        path: "/admin/letter-templates/create",
+        name: "admin-letter-templates-create",
+        component: () => import("@/pages/admin/letter-templates/edit.vue"),
+        meta: {
+          requiresAuth: true,
+          requiresAdmin: true,
+          headerTitle: "Create Letter Template",
+          headerIcon: "bi-file-earmark-plus",
+          headerColor: "text-danger"
+        }
+      },
+      {
+        path: "/admin/letter-templates/:id/edit",
+        name: "admin-letter-templates-edit",
+        component: () => import("@/pages/admin/letter-templates/edit.vue"),
+        meta: {
+          requiresAuth: true,
+          requiresAdmin: true,
+          headerTitle: "Edit Letter Template",
+          headerIcon: "bi-file-earmark-text",
+          headerColor: "text-danger"
+        }
+      },
+      {
+        path: "/modules/return-data-reports/issue-letter",
+        name: "return-issue-letter",
+        component: () => import("@/pages/modules/return-data-reports/issue-letter.vue"),
+        meta: {
+          requiresAuth: true,
+          headerTitle: "Issue Official Letter",
+          headerIcon: "bi-file-earmark-richtext",
+          headerColor: "text-danger"
+        }
+      },
+      {
+        path: "/admin/storage",
+        name: "admin-storage",
+        component: () => import("@/pages/admin/storage/index.vue"),
+        meta: {
+          requiresAuth: true,
+          requiresAdmin: true,
+          headerTitle: "Storage & Backup",
+          headerIcon: "bi-hdd-network-fill",
+          headerColor: "text-warning"
         }
       },
       {
         path: "/profile",
         name: "profile",
         component: () => import("@/pages/profile/index.vue"),
-        meta: { 
+        meta: {
           requiresAuth: true,
-          headerTitle: 'My Profile',
-          headerIcon: 'bi-person-circle',
-          headerColor: 'text-secondary'
+          headerTitle: "My Profile",
+          headerIcon: "bi-person-circle",
+          headerColor: "text-secondary"
         }
       },
       {
         path: "/modules/bin-analyser",
         name: "bin-analyser",
         component: () => import("@/pages/modules/bin-analyser.vue"),
-        meta: { 
+        meta: {
           requiresAuth: true,
-          headerTitle: 'BIN Analyser',
-          headerIcon: 'bi-file-earmark-bar-graph',
-          headerColor: 'text-primary'
+          headerTitle: "BIN Analyser",
+          headerIcon: "bi-file-earmark-bar-graph",
+          headerColor: "text-primary"
         }
       },
       {
         path: "/modules/return-data-analyser",
         name: "return-data-analyser",
         component: () => import("@/pages/modules/return-analyser.vue"),
-        meta: { 
+        meta: {
           requiresAuth: true,
-          headerTitle: 'Return Data Analyser',
-          headerIcon: 'bi-arrow-return-right',
-          headerColor: 'text-success'
+          headerTitle: "Return Data Analyser",
+          headerIcon: "bi-arrow-return-right",
+          headerColor: "text-success"
         }
       },
       {
         path: "/modules/reports",
         component: () => import("@/pages/modules/reports/layout.vue"),
         redirect: "/modules/reports/dashboard",
-        meta: { 
+        meta: {
           requiresAuth: true,
-          headerTitle: 'Reports & Analytics',
-          headerIcon: 'bi-bar-chart-fill',
-          headerColor: 'text-warning'
+          headerTitle: "Reports & Analytics",
+          headerIcon: "bi-bar-chart-fill",
+          headerColor: "text-warning"
         },
         children: [
           {
@@ -163,9 +222,9 @@ export const routes = [
         redirect: "/modules/return-data-reports/dashboard",
         meta: {
           requiresAuth: true,
-          headerTitle: 'Return Data Reports',
-          headerIcon: 'bi-pie-chart-fill',
-          headerColor: 'text-success'
+          headerTitle: "Return Data Reports",
+          headerIcon: "bi-pie-chart-fill",
+          headerColor: "text-success"
         },
         children: [
           {
@@ -216,9 +275,9 @@ export const routes = [
         component: () => import("@/pages/subscriptions/index.vue"),
         meta: {
           requiresAuth: true,
-          headerTitle: 'My Subscriptions',
-          headerIcon: 'bi-briefcase',
-          headerColor: 'text-primary'
+          headerTitle: "My Subscriptions",
+          headerIcon: "bi-briefcase",
+          headerColor: "text-primary"
         }
       }
     ]
@@ -285,11 +344,11 @@ async function getModuleStatus(moduleKey: string): Promise<boolean> {
     if (!fetchInFlight) {
       fetchInFlight = (async () => {
         try {
-          const res = await axios.get('/api/settings/app-settings');
+          const res = await axios.get("/api/settings/app-settings");
           const list = res.data?.data || [];
           const map: Record<string, boolean> = {};
           for (const item of list) {
-            map[item.key] = item.value === 'true';
+            map[item.key] = item.value === "true";
           }
           cachedSettings = map;
           lastFetchTime = Date.now();
@@ -338,7 +397,11 @@ router.beforeEach(async (to) => {
       if (path.startsWith("/modules/bin-analyser") || path.startsWith("/modules/reports")) {
         const active = await getModuleStatus("module_bin_analyser");
         if (!active) return { path: "/dashboard" };
-      } else if (path.startsWith("/modules/return-data") || path.startsWith("/modules/return-data-reports") || path.startsWith("/modules/return-data-analyser")) {
+      } else if (
+        path.startsWith("/modules/return-data") ||
+        path.startsWith("/modules/return-data-reports") ||
+        path.startsWith("/modules/return-data-analyser")
+      ) {
         const active = await getModuleStatus("module_return_data");
         if (!active) return { path: "/dashboard" };
       } else if (path.startsWith("/modules/revenue-analyser")) {

@@ -184,6 +184,32 @@
           </div>
         </div>
 
+        <div class="col-md-4">
+          <div class="card h-100 bg-surface border-custom shadow-sm hover-card">
+            <div class="card-body text-center p-4 d-flex flex-column justify-content-center" style="min-height: 260px;">
+              <div class="mb-3">
+                <i class="bi bi-file-earmark-richtext text-danger" style="font-size: 3rem;"></i>
+              </div>
+              <h5 class="card-title fw-bold">Letter Templates</h5>
+              <p class="card-text text-muted small">Create and manage official letter templates.</p>
+              <router-link to="/admin/letter-templates" class="btn btn-outline-danger w-100 mt-auto">Manage Templates</router-link>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card h-100 bg-surface border-custom shadow-sm hover-card">
+            <div class="card-body text-center p-4 d-flex flex-column justify-content-center" style="min-height: 260px;">
+              <div class="mb-3">
+                <i class="bi bi-hdd-network text-warning" style="font-size: 3rem;"></i>
+              </div>
+              <h5 class="card-title fw-bold">Storage & Backup</h5>
+              <p class="card-text text-muted small">Monitor database storage and download/restore SQL backups.</p>
+              <router-link to="/admin/storage" class="btn btn-outline-warning w-100 mt-auto">Manage Storage</router-link>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -218,11 +244,11 @@ const moduleStatus = reactive<Record<string, boolean>>({
 
 const fetchModuleStatus = async () => {
   try {
-    const res = await axios.get('/api/settings/app-settings');
+    const res = await axios.get("/api/settings/app-settings");
     const settings: Array<{ key: string; value: string }> = res.data?.data || [];
     for (const s of settings) {
       if (s.key in moduleStatus) {
-        moduleStatus[s.key] = s.value === 'true';
+        moduleStatus[s.key] = s.value === "true";
       }
     }
   } catch (err) {

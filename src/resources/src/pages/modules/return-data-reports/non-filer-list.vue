@@ -272,13 +272,22 @@
                 <div v-if="!row.majorArea && !row.manufacturingArea && !row.serviceArea">-</div>
               </td>
               <td class="text-center">
-                <button
-                  class="btn btn-sm btn-outline-warning py-0 px-2"
-                  @click="viewPenaltyReport(row.bin)"
-                  title="View Non-Filer Penalty Report"
-                >
-                  <i class="bi bi-file-earmark-text me-1"></i> Report
-                </button>
+                <div class="d-flex justify-content-center gap-1">
+                  <button
+                    class="btn btn-sm btn-outline-warning py-0 px-2"
+                    @click="viewPenaltyReport(row.bin)"
+                    title="View Non-Filer Penalty Report"
+                  >
+                    <i class="bi bi-file-earmark-text me-1"></i> Report
+                  </button>
+                  <button
+                    class="btn btn-sm btn-outline-danger py-0 px-2"
+                    @click="openIssueLetterModal(row)"
+                    title="Issue Official Letter / Notice"
+                  >
+                    <i class="bi bi-envelope-paper me-1"></i> Letter
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -316,11 +325,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import axios from "@/plugins/axios";
 import MultiSelectDropdown from "@/components/common/MultiSelectDropdown.vue";
 import SearchInput from "@/components/common/SearchInput.vue";
+import axios from "@/plugins/axios";
 
 const router = useRouter();
 
@@ -346,6 +355,15 @@ const totalSummaryData = ref<any>(savedState?.totalSummaryData || null);
 const searchQuery = ref(savedState?.searchQuery || "");
 const currentPage = ref(savedState?.currentPage || 1);
 const pageSize = ref(10);
+
+// Open Issue Letter page in a new browser tab
+const openIssueLetterModal = (row: any) => {
+  const routeData = router.resolve({
+    name: "return-issue-letter",
+    query: { bin: row.bin }
+  });
+  window.open(routeData.href, "_blank");
+};
 
 // Filter selections (restored from saved session if available)
 const fromIssueDate = ref(savedState?.fromIssueDate || "");
@@ -664,9 +682,14 @@ const resetFilters = () => {
 };
 
 const viewPenaltyReport = (bin: string) => {
+  const query: Record<string, string> = { bin, fromList: "true" };
+  if (fromIssueDate.value) query.fromIssueDate = fromIssueDate.value;
+  if (toIssueDate.value) query.toIssueDate = toIssueDate.value;
+  if (fromTaxPeriod.value) query.fromTaxPeriod = fromTaxPeriod.value;
+  if (toTaxPeriod.value) query.toTaxPeriod = toTaxPeriod.value;
   router.push({
     name: "return-search-by-bin",
-    query: { bin, fromList: "true" }
+    query
   });
 };
 
@@ -719,7 +742,21 @@ const downloadExcel = () => {
     ...data.map((row, idx) => {
       const bin = `"=""${row.bin || ""}"""`;
       const name = `"${(row.name || "").replace(/"/g, '""')}"`;
-      const address = `"${(row.address && row.address !== "N/A" ? row.address : "").replace(/"/g, '""')}"`;
+
+      // Combine "Address, Police Station, District"
+      const addrParts: string[] = [];
+      if (row.address && row.address !== "N/A" && row.address !== "-") {
+        addrParts.push(row.address.trim());
+      }
+      if (row.policeStationName && row.policeStationName !== "N/A") {
+        addrParts.push(row.policeStationName.trim());
+      }
+      if (row.divisionName && row.divisionName !== "N/A") {
+        addrParts.push(row.divisionName.trim());
+      }
+      const fullAddressStr = addrParts.join(", ");
+      const address = `"${fullAddressStr.replace(/"/g, '""')}"`;
+
       const economicActivity = `"${formatEconomicActivity(row).replace(/"/g, '""')}"`;
       const mobile = `"=""${row.mobile && row.mobile !== "-" ? row.mobile : ""}"""`;
       const circle = `"${(row.circleName || "").replace(/"/g, '""')}"`;

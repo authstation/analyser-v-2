@@ -36,6 +36,23 @@ body {
   --bs-font-sans-serif: "Public Sans", sans-serif;
 }
 
+@font-face {
+  font-family: "NikoshBAN";
+  src: url("/fonts/NikoshBAN.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Official Letter Typography: NikoshBAN */
+.font-bangla-letter,
+.official-paper,
+.official-preview,
+.body-editor,
+.letter-body-textarea {
+  font-family: "NikoshBAN", "Nikosh", sans-serif !important;
+}
+
 #app {
   position: relative;
   min-height: 100%;

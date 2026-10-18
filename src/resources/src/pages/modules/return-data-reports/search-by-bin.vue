@@ -176,9 +176,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import axios from '@/plugins/axios';
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import axios from "@/plugins/axios";
 
 const route = useRoute();
 const router = useRouter();
@@ -187,11 +187,11 @@ const handleBack = () => {
   if (window.history.length > 1) {
     router.back();
   } else {
-    router.push({ name: 'return-non-filer-list' });
+    router.push({ name: "return-non-filer-list" });
   }
 };
 const loading = ref(false);
-const searchQuery = ref('');
+const searchQuery = ref("");
 const showDropdown = ref(false);
 const selectedReport = ref<any | null>(null);
 
@@ -204,24 +204,31 @@ const minSuggestLength = 3;
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
 const fetchReport = async (binOverride?: string) => {
-  const targetBin = (binOverride || searchQuery.value || '').trim();
+  const targetBin = (binOverride || searchQuery.value || "").trim();
   if (!targetBin) return;
 
   loading.value = true;
   showDropdown.value = false;
   try {
-    const res = await axios.get('/api/return-data-analyser/non-filer-list?q=' + encodeURIComponent(targetBin));
+    const params = new URLSearchParams();
+    params.append("q", targetBin);
+    if (route.query.fromTaxPeriod) params.append("fromTaxPeriod", String(route.query.fromTaxPeriod));
+    if (route.query.toTaxPeriod) params.append("toTaxPeriod", String(route.query.toTaxPeriod));
+    if (route.query.fromIssueDate) params.append("fromIssueDate", String(route.query.fromIssueDate));
+    if (route.query.toIssueDate) params.append("toIssueDate", String(route.query.toIssueDate));
+
+    const res = await axios.get("/api/return-data-analyser/non-filer-list?" + params.toString());
     if (res.data.data && res.data.data.length > 0) {
       // Find exact BIN match if multiple returned
       const exact = res.data.data.find((item: any) => item.bin === targetBin);
       selectedReport.value = exact || res.data.data[0];
     } else {
-      alert('No non-filer record found for this BIN');
+      alert("No non-filer record found for this BIN");
       selectedReport.value = null;
     }
   } catch (error) {
     console.error(error);
-    alert('Failed to load report');
+    alert("Failed to load report");
   } finally {
     loading.value = false;
   }
@@ -230,7 +237,7 @@ const fetchReport = async (binOverride?: string) => {
 const fetchSuggestions = async (term: string) => {
   suggestLoading.value = true;
   try {
-    const res = await axios.get('/api/return-data-analyser/non-filer-list?q=' + encodeURIComponent(term));
+    const res = await axios.get("/api/return-data-analyser/non-filer-list?q=" + encodeURIComponent(term));
     // Ignore stale responses if the query changed while this request was in flight.
     if (searchQuery.value.trim() !== term) return;
     suggestions.value = (res.data.data || []).slice(0, 50);
@@ -286,7 +293,7 @@ const handleRefresh = () => {
 };
 
 const clearSearch = () => {
-  searchQuery.value = '';
+  searchQuery.value = "";
   selectedReport.value = null;
   showDropdown.value = false;
   suggestions.value = [];
@@ -304,38 +311,70 @@ const penaltyBreakdown = computed(() => {
   if (selectedReport.value.penaltyBreakdown && selectedReport.value.penaltyBreakdown.length > 0) {
     return selectedReport.value.penaltyBreakdown.map((row: any) => ({
       ...row,
-      lastMonth: row.totalMonths <= 1 ? '-' : row.lastMonth
+      lastMonth: row.totalMonths <= 1 ? "-" : row.lastMonth
     }));
   }
   const unfiled = selectedReport.value.grandTotalMonths || selectedReport.value.nonFiledMonths || 0;
-  
-  let fMonth = selectedReport.value.firstMonth || '-';
-  let lMonth = selectedReport.value.lastMonth || '-';
+
+  let fMonth = selectedReport.value.firstMonth || "-";
+  let lMonth = selectedReport.value.lastMonth || "-";
   let rate = 10000;
-  let rulePeriodStr = '01.07.2019 to 31.03.2024';
+  let rulePeriodStr = "01.07.2019 to 31.03.2024";
+
+  const monthNames = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December"
+  ];
+
+  let startYear = 0;
+  let startMonth = 0; // 1-indexed
+
+  if (route.query.fromTaxPeriod) {
+    const [y, m] = String(route.query.fromTaxPeriod).split("-").map(Number);
+    if (!isNaN(y) && !isNaN(m)) {
+      startYear = y;
+      startMonth = m;
+    }
+  }
 
   if (selectedReport.value.issueDate) {
     const d = new Date(selectedReport.value.issueDate);
     if (!isNaN(d.getTime())) {
-      const monthNames = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-      ];
-      fMonth = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-      if (unfiled > 1) {
-        const lastD = new Date(d.getFullYear(), d.getMonth() + unfiled - 1, 1);
-        lMonth = `${monthNames[lastD.getMonth()]} ${lastD.getFullYear()}`;
-      } else {
-        lMonth = '-';
+      const issueY = d.getFullYear();
+      const issueM = d.getMonth() + 1;
+      // If issue date is later than filter fromTaxPeriod, start from issue date
+      if (startYear === 0 || issueY * 12 + issueM > startYear * 12 + startMonth) {
+        startYear = issueY;
+        startMonth = issueM;
       }
-      const ym = d.getFullYear() * 100 + (d.getMonth() + 1);
-      if (ym >= 202507) {
-        rate = 2000;
-        rulePeriodStr = '01.07.2025 to Present';
-      } else if (ym >= 202404) {
-        rate = 5000;
-        rulePeriodStr = '01.04.2024 to 30.06.2025';
-      }
+    }
+  }
+
+  if (startYear > 0 && startMonth > 0) {
+    fMonth = `${monthNames[startMonth - 1]} ${startYear}`;
+    if (unfiled > 1) {
+      const lastD = new Date(startYear, startMonth - 1 + unfiled - 1, 1);
+      lMonth = `${monthNames[lastD.getMonth()]} ${lastD.getFullYear()}`;
+    } else {
+      lMonth = "-";
+    }
+    const ym = startYear * 100 + startMonth;
+    if (ym >= 202507) {
+      rate = 2000;
+      rulePeriodStr = "01.07.2025 to Present";
+    } else if (ym >= 202404) {
+      rate = 5000;
+      rulePeriodStr = "01.04.2024 to 30.06.2025";
     }
   }
 
@@ -345,7 +384,7 @@ const penaltyBreakdown = computed(() => {
       rulePeriodStr,
       totalMonths: unfiled,
       firstMonth: fMonth,
-      lastMonth: unfiled <= 1 ? '-' : lMonth,
+      lastMonth: unfiled <= 1 ? "-" : lMonth,
       totalAmount: unfiled * rate
     }
   ];
@@ -361,44 +400,44 @@ const grandTotalAmount = computed(() => {
 });
 
 const formatDate = (dateStr: string | null) => {
-  if (!dateStr) return '';
+  if (!dateStr) return "";
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '';
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
+  if (isNaN(d.getTime())) return "";
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
   const year = d.getFullYear();
   return `${day}.${month}.${year}`;
 };
 
 const calculateTimeAgo = (dateStr: string | null) => {
-  if (!dateStr) return '';
+  if (!dateStr) return "";
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '';
-  
+  if (isNaN(d.getTime())) return "";
+
   const now = new Date();
-  
+
   let years = now.getFullYear() - d.getFullYear();
   let months = now.getMonth() - d.getMonth();
   let days = now.getDate() - d.getDate();
-  
+
   if (days < 0) {
     months--;
     const previousMonth = new Date(now.getFullYear(), now.getMonth(), 0);
     days += previousMonth.getDate();
   }
-  
+
   if (months < 0) {
     years--;
     months += 12;
   }
-  
+
   const parts = [];
-  if (years > 0) parts.push(`${years} year${years > 1 ? 's' : ''}`);
-  if (months > 0) parts.push(`${months} month${months > 1 ? 's' : ''}`);
-  if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
-  
-  if (parts.length === 0) return 'Today';
-  return parts.join(', ') + ' ago';
+  if (years > 0) parts.push(`${years} year${years > 1 ? "s" : ""}`);
+  if (months > 0) parts.push(`${months} month${months > 1 ? "s" : ""}`);
+  if (days > 0) parts.push(`${days} day${days > 1 ? "s" : ""}`);
+
+  if (parts.length === 0) return "Today";
+  return parts.join(", ") + " ago";
 };
 
 const printReport = () => {

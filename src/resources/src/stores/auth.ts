@@ -111,6 +111,9 @@ export const useAuthStore = defineStore("auth", () => {
       if (data?.data?.access_token) {
         try {
           localStorage.setItem("access_token", data.data.access_token);
+          if (data.data.refresh_token) {
+            localStorage.setItem("refresh_token", data.data.refresh_token);
+          }
         } catch {}
       }
       initialized.value = true;
@@ -130,6 +133,9 @@ export const useAuthStore = defineStore("auth", () => {
         if (data?.data?.access_token) {
           try {
             localStorage.setItem("access_token", data.data.access_token);
+            if (data.data.refresh_token) {
+              localStorage.setItem("refresh_token", data.data.refresh_token);
+            }
           } catch {}
         }
         initialized.value = true;
@@ -179,6 +185,7 @@ export const useAuthStore = defineStore("auth", () => {
     } finally {
       try {
         localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
       } catch {}
       syncUser(null);
       processing.value = false;
