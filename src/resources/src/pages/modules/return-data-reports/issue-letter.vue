@@ -491,18 +491,11 @@ const loadEntityData = async () => {
     const matched = list.find((item: any) => String(item.bin) === String(entityBin.value)) || list[0];
     if (matched) {
       entityData.value = matched;
-      // Transliterate English entity name to Bengali phonetics without translating meaning
       const rawName = matched.name || "";
-      let bnName = await transliterateToBengali(rawName);
-      // Clean up leading মেসার্স if user interface prefix already has it
-      bnName = bnName.replace(/^মেসার্স\s+/i, "").trim();
-
-      // Transliterate English address to Bengali phonetics
       const rawAddress = [matched.address, matched.policeStationName, matched.divisionName].filter(Boolean).join(", ");
-      const bnAddress = await transliterateToBengali(rawAddress);
 
-      letterData.value.recipientName = bnName || rawName;
-      letterData.value.recipientAddress = bnAddress || rawAddress;
+      letterData.value.recipientName = rawName;
+      letterData.value.recipientAddress = rawAddress;
       letterData.value.recipientBin = matched.bin || entityBin.value;
     }
   } catch (err) {
@@ -525,6 +518,25 @@ const loadTemplates = async () => {
   }
 };
 
+const formatBnMonthYear = (dateStr: string | null) => {
+  if (!dateStr) return "জুলাই ২০২৬";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "জুলাই ২০২৬";
+  const bnMonths = [
+    "জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন",
+    "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"
+  ];
+  const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+  const mName = bnMonths[d.getMonth()];
+  const yStr = String(d.getFullYear()).split("").map((ch) => bnDigits[Number(ch)] || ch).join("");
+  return `${mName} ${yStr}`;
+};
+
+const toBnNumber = (num: number | string) => {
+  const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+  return String(num).split("").map((ch) => bnDigits[Number(ch)] || ch).join("");
+};
+
 const applyTemplateData = (tpl: any) => {
   letterData.value.subject = tpl.subject || "";
   letterData.value.reference = tpl.reference || "";
@@ -543,11 +555,8 @@ const applyTemplateData = (tpl: any) => {
       .replace(/{{bin}}/g, ent.bin || "")
       .replace(/{{address}}/g, letterData.value.recipientAddress || [ent.address, ent.policeStationName, ent.divisionName].filter(Boolean).join(", "))
       .replace(/{{mobile}}/g, ent.mobile || "")
-      .replace(/{{non_filed_months_count}}/g, String(ent.grandTotalMonths || "১"))
-      .replace(
-        /{{reg_month_year}}/g,
-        ent.issueDate ? new Date(ent.issueDate).toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "জুলাই ২০২৬"
-      )
+      .replace(/{{non_filed_months_count}}/g, toBnNumber(ent.grandTotalMonths || "১"))
+      .replace(/{{reg_month_year}}/g, formatBnMonthYear(ent.issueDate))
       .replace(/{{circle_name}}/g, ent.circleName || "")
       .replace(/{{police_station}}/g, ent.policeStationName || "")
       .replace(/{{district}}/g, ent.divisionName || "");

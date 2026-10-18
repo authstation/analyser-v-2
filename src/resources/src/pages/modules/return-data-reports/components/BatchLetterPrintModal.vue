@@ -262,6 +262,25 @@ const normalizeCcGroups = (raw: any): any[] => {
   return [];
 };
 
+const formatBnMonthYear = (dateStr: string | null) => {
+  if (!dateStr) return "জুলাই ২০২৬";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "জুলাই ২০২৬";
+  const bnMonths = [
+    "জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন",
+    "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"
+  ];
+  const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+  const mName = bnMonths[d.getMonth()];
+  const yStr = String(d.getFullYear()).split("").map((ch) => bnDigits[Number(ch)] || ch).join("");
+  return `${mName} ${yStr}`;
+};
+
+const toBnNumber = (num: number | string) => {
+  const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+  return String(num).split("").map((ch) => bnDigits[Number(ch)] || ch).join("");
+};
+
 const prepareBatchLetters = async () => {
   if (!props.template || !props.entities || props.entities.length === 0) {
     preparedLetters.value = [];
@@ -279,26 +298,19 @@ const prepareBatchLetters = async () => {
     const ent = props.entities[i];
     progressCount.value = i + 1;
 
-    // Transliterate recipient name & address
+    // Use original English name and address directly from database
     const rawName = ent.name || "";
-    let bnName = await transliterateToBengali(rawName);
-    bnName = bnName.replace(/^মেসার্স\s+/i, "").trim();
-
     const rawAddress = [ent.address, ent.policeStationName, ent.divisionName].filter(Boolean).join(", ");
-    const bnAddress = await transliterateToBengali(rawAddress);
 
     // Dynamic variable replacements
     let populatedBody = tpl.bodyHtml || "";
     populatedBody = populatedBody
-      .replace(/{{entity_name}}/g, bnName || rawName)
+      .replace(/{{entity_name}}/g, rawName)
       .replace(/{{bin}}/g, ent.bin || "")
-      .replace(/{{address}}/g, bnAddress || rawAddress)
+      .replace(/{{address}}/g, rawAddress)
       .replace(/{{mobile}}/g, ent.mobile || "")
-      .replace(/{{non_filed_months_count}}/g, String(ent.grandTotalMonths || "১"))
-      .replace(
-        /{{reg_month_year}}/g,
-        ent.issueDate ? new Date(ent.issueDate).toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "জুলাই ২০২৬"
-      )
+      .replace(/{{non_filed_months_count}}/g, toBnNumber(ent.grandTotalMonths || "১"))
+      .replace(/{{reg_month_year}}/g, formatBnMonthYear(ent.issueDate))
       .replace(/{{circle_name}}/g, ent.circleName || "")
       .replace(/{{police_station}}/g, ent.policeStationName || "")
       .replace(/{{district}}/g, ent.divisionName || "");
@@ -317,8 +329,8 @@ const prepareBatchLetters = async () => {
       body: populatedBody,
       signatoryName: tpl.signatoryTitle || "(শেখ শাহির আহমেদ)",
       signatoryDesignation: tpl.signatorySubtitle || "সহকারী কমিশনার\nও\nবিভাগীয় কর্মকর্তা",
-      recipientName: bnName || rawName,
-      recipientAddress: bnAddress || rawAddress,
+      recipientName: rawName,
+      recipientAddress: rawAddress,
       recipientBin: ent.bin || "",
       includeCc: Boolean(ccGroups.length > 0),
       ccGroups,
