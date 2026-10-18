@@ -119,8 +119,8 @@
               <!-- Recipient (Entity Details) - Left Aligned -->
               <div class="mt-0 mb-2 text-dark" style="line-height: 1.35; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
                 <div class="fw-bold" style="font-size: 9pt;">{{ cleanRecipientName(letter.recipientName) }}</div>
-                <div style="font-size: 10pt;">ঠিকানা: {{ letter.recipientAddress || '—' }}</div>
-                <div style="font-size: 10pt;">নিবন্ধন নং: {{ letter.recipientBin || '—' }}</div>
+                <div style="font-size: 10pt;"><span style="font-size: 12pt;">ঠিকানা: </span>{{ letter.recipientAddress || '—' }}</div>
+                <div style="font-size: 12pt;">নিবন্ধন নং: {{ letter.recipientBin || '—' }}</div>
               </div>
 
               <!-- Copy to / CC Section -->
@@ -520,8 +520,8 @@ const downloadWordDoc = () => {
 
         <div style="margin-bottom: 15pt; line-height: 1.35;">
           <div class="bold" style="font-size: 9pt;">${cleanRecipientName(l.recipientName)}</div>
-          <div style="font-size: 10pt;">ঠিকানা: ${l.recipientAddress}</div>
-          <div style="font-size: 10pt;">নিবন্ধন নং: ${l.recipientBin}</div>
+          <div style="font-size: 10pt;"><span style="font-size: 12pt;">ঠিকানা: </span>${l.recipientAddress}</div>
+          <div style="font-size: 12pt;">নিবন্ধন নং: ${l.recipientBin}</div>
         </div>
 
         ${ccContent}
