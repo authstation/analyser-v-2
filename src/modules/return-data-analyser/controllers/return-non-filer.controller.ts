@@ -158,7 +158,8 @@ export const nonFilerList: Handler = async (c: any) => {
         serviceArea: binData.areasOfService,
         circleName: circles.name,
         policeStationName: policeStations.name,
-        divisionName: divisions.name
+        divisionName: divisions.name,
+        district: sql<string>`coalesce(${binData.rawJson}::jsonb->>'District', ${binData.rawJson}::jsonb->>'district', '')`
       })
       .from(binData)
       .leftJoin(circles, eq(binData.circleId, circles.id))

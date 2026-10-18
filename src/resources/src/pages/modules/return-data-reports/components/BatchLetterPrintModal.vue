@@ -306,11 +306,10 @@ const prepareBatchLetters = async () => {
     const ent = props.entities[i];
     progressCount.value = i + 1;
 
-    // Use original English name and address directly from database
+    // Use original English name and address with District directly from database
     const rawName = ent.name || "";
-    const cleanDiv = (ent.divisionName || "").replace(/\s*division\s*/i, "").trim();
-    const parts = [ent.address, ent.policeStationName].filter(Boolean);
-    if (cleanDiv) parts.push(cleanDiv);
+    const districtName = ent.district || ent.divisionName?.replace(/\s*division\s*/i, "").trim() || "";
+    const parts = [ent.address, ent.policeStationName, districtName].filter(Boolean);
     let rawAddress = parts.join(", ").trim();
     if (rawAddress && !rawAddress.endsWith(".")) {
       rawAddress += ".";
@@ -327,7 +326,7 @@ const prepareBatchLetters = async () => {
       .replace(/{{reg_month_year}}/g, formatBnMonthYear(ent.issueDate))
       .replace(/{{circle_name}}/g, ent.circleName || "")
       .replace(/{{police_station}}/g, ent.policeStationName || "")
-      .replace(/{{district}}/g, cleanDiv || ent.divisionName || "");
+      .replace(/{{district}}/g, districtName);
 
     const ccGroups = tpl.ccItems ? normalizeCcGroups(tpl.ccItems) : [];
 

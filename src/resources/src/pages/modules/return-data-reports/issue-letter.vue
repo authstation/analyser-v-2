@@ -312,16 +312,10 @@ const letterData = ref<any>({
 // Uses shared transliterateToBengali from utils/transliterate
 
 
-const cleanDivisionName = (divName: string) => {
-  if (!divName) return "";
-  return divName.replace(/\s*division\s*/i, "").trim();
-};
-
 const formatEntityAddress = (ent: any) => {
   if (!ent) return "";
-  const parts = [ent.address, ent.policeStationName].filter(Boolean);
-  const cleanDiv = cleanDivisionName(ent.divisionName || "");
-  if (cleanDiv) parts.push(cleanDiv);
+  const districtName = ent.district || ent.divisionName?.replace(/\s*division\s*/i, "").trim() || "";
+  const parts = [ent.address, ent.policeStationName, districtName].filter(Boolean);
   let addr = parts.join(", ").trim();
   if (addr && !addr.endsWith(".")) {
     addr += ".";
@@ -399,16 +393,17 @@ const applyTemplateData = (tpl: any) => {
   let populatedBody = tpl.bodyHtml || "";
   const ent = entityData.value;
   if (ent) {
+    const districtName = ent.district || ent.divisionName?.replace(/\s*division\s*/i, "").trim() || "";
     populatedBody = populatedBody
       .replace(/{{entity_name}}/g, letterData.value.recipientName || ent.name || "")
       .replace(/{{bin}}/g, ent.bin || "")
-      .replace(/{{address}}/g, letterData.value.recipientAddress || [ent.address, ent.policeStationName, ent.divisionName].filter(Boolean).join(", "))
+      .replace(/{{address}}/g, letterData.value.recipientAddress || formatEntityAddress(ent))
       .replace(/{{mobile}}/g, ent.mobile || "")
       .replace(/{{non_filed_months_count}}/g, toBnNumber(ent.grandTotalMonths || "১"))
       .replace(/{{reg_month_year}}/g, formatBnMonthYear(ent.issueDate))
       .replace(/{{circle_name}}/g, ent.circleName || "")
       .replace(/{{police_station}}/g, ent.policeStationName || "")
-      .replace(/{{district}}/g, ent.divisionName || "");
+      .replace(/{{district}}/g, districtName);
   } else if (entityBin.value) {
     populatedBody = populatedBody.replace(/{{bin}}/g, entityBin.value);
   }
