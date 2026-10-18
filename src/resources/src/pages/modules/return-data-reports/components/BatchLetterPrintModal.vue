@@ -119,9 +119,9 @@
               <!-- Recipient (Entity Details) - Left Aligned -->
               <div class="mt-0 mb-2" style="line-height: 1.35; font-size: 12pt; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
                 <div class="fw-bold mb-1">প্রাপক:</div>
-                <div class="fw-bold text-dark">মেসার্স {{ letter.recipientName }}</div>
-                <div class="text-dark">ঠিকানা: {{ letter.recipientAddress }}</div>
-                <div class="text-dark">নিবন্ধন নং: {{ letter.recipientBin }}</div>
+                <div class="fw-bold text-dark">{{ cleanRecipientName(letter.recipientName) }}</div>
+                <div class="text-dark">ঠিকানা: {{ letter.recipientAddress || '—' }}</div>
+                <div class="text-dark">নিবন্ধন নং: {{ letter.recipientBin || '—' }}</div>
               </div>
 
               <!-- Copy to / CC Section -->
@@ -198,6 +198,15 @@ const formatBnIndex = (index: number | string) => {
   const num = Number(index) + 1;
   const numStr = num < 10 ? `0${num}` : `${num}`;
   return numStr.split("").map((d) => bnDigits[Number(d)] || d).join("") + "।";
+};
+
+const cleanRecipientName = (name: string) => {
+  if (!name) return "";
+  const trimmed = name.trim();
+  if (/^(m\/s\.?|ms\.?|মেসার্স)\s*/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `মেসার্স ${trimmed}`;
 };
 
 const getBodyParagraphs = (body: string) => {

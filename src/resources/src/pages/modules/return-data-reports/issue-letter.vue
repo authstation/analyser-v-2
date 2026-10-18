@@ -234,9 +234,9 @@
             <div class="fw-bold mb-1">প্রাপক:</div>
             
             <div v-if="viewFinalMode">
-              <div class="fw-bold text-dark">মেসার্স {{ letterData.recipientName }}</div>
-              <div class="text-dark">ঠিকানা: {{ letterData.recipientAddress }}</div>
-              <div class="text-dark">নিবন্ধন নং: {{ letterData.recipientBin }}</div>
+              <div class="fw-bold text-dark">{{ cleanRecipientName(letterData.recipientName) }}</div>
+              <div class="text-dark">ঠিকানা: {{ letterData.recipientAddress || '—' }}</div>
+              <div class="text-dark">নিবন্ধন নং: {{ letterData.recipientBin || '—' }}</div>
             </div>
 
             <div v-else>
@@ -422,6 +422,16 @@ const formatBnIndex = (index: number | string) => {
   return numStr.split("").map((d) => bnDigits[Number(d)] || d).join("") + "।";
 };
 
+const cleanRecipientName = (name: string) => {
+  if (!name) return "";
+  const trimmed = name.trim();
+  // If already starts with M/S, M/S., Ms, Ms. or মেসার্স, keep it clean
+  if (/^(m\/s\.?|ms\.?|মেসার্স)\s*/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `মেসার্স ${trimmed}`;
+};
+
 const getGroupItems = (group: any): string[] => {
   if (group.text !== undefined) {
     return group.text
@@ -486,7 +496,7 @@ const letterData = ref<any>({
 const loadEntityData = async () => {
   if (!entityBin.value) return;
   try {
-    const res = await axios.get(`/api/return-data-analyser/non-filers?search=${encodeURIComponent(entityBin.value)}`);
+    const res = await axios.get(`/api/return-data-analyser/non-filer-list?q=${encodeURIComponent(entityBin.value)}`);
     const list = res.data?.data || [];
     const matched = list.find((item: any) => String(item.bin) === String(entityBin.value)) || list[0];
     if (matched) {
@@ -497,9 +507,12 @@ const loadEntityData = async () => {
       letterData.value.recipientName = rawName;
       letterData.value.recipientAddress = rawAddress;
       letterData.value.recipientBin = matched.bin || entityBin.value;
+    } else {
+      letterData.value.recipientBin = entityBin.value;
     }
   } catch (err) {
     console.error("Failed to load entity details", err);
+    letterData.value.recipientBin = entityBin.value;
   }
 };
 
@@ -889,7 +902,21 @@ onMounted(async () => {
           } else if (draft.ccItems) {
             draft.ccGroups = normalizeCcGroups(draft.ccItems);
           }
+          const liveRecipientName = letterData.value.recipientName;
+          const liveRecipientAddress = letterData.value.recipientAddress;
+          const liveRecipientBin = letterData.value.recipientBin;
+
           letterData.value = { ...letterData.value, ...draft };
+
+          if (!letterData.value.recipientName && liveRecipientName) {
+            letterData.value.recipientName = liveRecipientName;
+          }
+          if (!letterData.value.recipientAddress && liveRecipientAddress) {
+            letterData.value.recipientAddress = liveRecipientAddress;
+          }
+          if (!letterData.value.recipientBin && liveRecipientBin) {
+            letterData.value.recipientBin = liveRecipientBin;
+          }
         }
       } catch {}
     }
