@@ -134,11 +134,10 @@
           </div>
 
           <!-- Recipient (Entity Details) - Left Aligned -->
-          <div class="mt-0 mb-2" style="line-height: 1.35; font-size: 12pt; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
-            <div class="fw-bold mb-1">প্রাপক:</div>
-            <div class="fw-bold text-dark">{{ cleanRecipientName(letterData.recipientName) }}</div>
-            <div class="text-dark">ঠিকানা: {{ letterData.recipientAddress || '—' }}</div>
-            <div class="text-dark">নিবন্ধন নং: {{ letterData.recipientBin || '—' }}</div>
+          <div class="mt-0 mb-2 text-dark" style="line-height: 1.35; font-size: 12pt; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
+            <div class="fw-bold" style="font-size: 12pt;">{{ cleanRecipientName(letterData.recipientName) }}</div>
+            <div style="font-size: 12pt;">ঠিকানা: {{ letterData.recipientAddress || '—' }}</div>
+            <div style="font-size: 12pt;">নিবন্ধন নং: {{ letterData.recipientBin || '—' }}</div>
           </div>
 
           <!-- Copy to / CC Section (Purely controlled by template CC groups) -->
@@ -313,6 +312,23 @@ const letterData = ref<any>({
 // Uses shared transliterateToBengali from utils/transliterate
 
 
+const cleanDivisionName = (divName: string) => {
+  if (!divName) return "";
+  return divName.replace(/\s*division\s*/i, "").trim();
+};
+
+const formatEntityAddress = (ent: any) => {
+  if (!ent) return "";
+  const parts = [ent.address, ent.policeStationName].filter(Boolean);
+  const cleanDiv = cleanDivisionName(ent.divisionName || "");
+  if (cleanDiv) parts.push(cleanDiv);
+  let addr = parts.join(", ").trim();
+  if (addr && !addr.endsWith(".")) {
+    addr += ".";
+  }
+  return addr;
+};
+
 const loadEntityData = async () => {
   if (!entityBin.value) return;
   try {
@@ -322,7 +338,7 @@ const loadEntityData = async () => {
     if (matched) {
       entityData.value = matched;
       const rawName = matched.name || "";
-      const rawAddress = [matched.address, matched.policeStationName, matched.divisionName].filter(Boolean).join(", ");
+      const rawAddress = formatEntityAddress(matched);
 
       letterData.value.recipientName = rawName;
       letterData.value.recipientAddress = rawAddress;
@@ -469,8 +485,7 @@ const downloadWordDoc = () => {
   // Recipient HTML
   const recipientHtml = `
     <div style="margin-top: 6pt; margin-bottom: 10pt; font-family: 'NikoshBAN', 'Nikosh', 'SolaimanLipi', sans-serif; font-size: 12pt; line-height: 1.35;">
-      <div style="font-weight: bold; margin-bottom: 2pt; font-size: 12pt;">প্রাপক:</div>
-      <div style="font-weight: bold; font-size: 12pt;">মেসার্স ${d.recipientName || ''}</div>
+      <div style="font-weight: bold; font-size: 12pt;">${cleanRecipientName(d.recipientName)}</div>
       <div style="font-size: 12pt;">ঠিকানা: ${d.recipientAddress || ''}</div>
       <div style="font-size: 12pt;">নিবন্ধন নং: ${d.recipientBin || ''}</div>
     </div>

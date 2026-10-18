@@ -117,11 +117,10 @@
               </div>
 
               <!-- Recipient (Entity Details) - Left Aligned -->
-              <div class="mt-0 mb-2" style="line-height: 1.35; font-size: 12pt; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
-                <div class="fw-bold mb-1">প্রাপক:</div>
-                <div class="fw-bold text-dark">{{ cleanRecipientName(letter.recipientName) }}</div>
-                <div class="text-dark">ঠিকানা: {{ letter.recipientAddress || '—' }}</div>
-                <div class="text-dark">নিবন্ধন নং: {{ letter.recipientBin || '—' }}</div>
+              <div class="mt-0 mb-2 text-dark" style="line-height: 1.35; font-size: 12pt; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
+                <div class="fw-bold" style="font-size: 12pt;">{{ cleanRecipientName(letter.recipientName) }}</div>
+                <div style="font-size: 12pt;">ঠিকানা: {{ letter.recipientAddress || '—' }}</div>
+                <div style="font-size: 12pt;">নিবন্ধন নং: {{ letter.recipientBin || '—' }}</div>
               </div>
 
               <!-- Copy to / CC Section -->
@@ -309,7 +308,13 @@ const prepareBatchLetters = async () => {
 
     // Use original English name and address directly from database
     const rawName = ent.name || "";
-    const rawAddress = [ent.address, ent.policeStationName, ent.divisionName].filter(Boolean).join(", ");
+    const cleanDiv = (ent.divisionName || "").replace(/\s*division\s*/i, "").trim();
+    const parts = [ent.address, ent.policeStationName].filter(Boolean);
+    if (cleanDiv) parts.push(cleanDiv);
+    let rawAddress = parts.join(", ").trim();
+    if (rawAddress && !rawAddress.endsWith(".")) {
+      rawAddress += ".";
+    }
 
     // Dynamic variable replacements
     let populatedBody = tpl.bodyHtml || "";
@@ -322,7 +327,7 @@ const prepareBatchLetters = async () => {
       .replace(/{{reg_month_year}}/g, formatBnMonthYear(ent.issueDate))
       .replace(/{{circle_name}}/g, ent.circleName || "")
       .replace(/{{police_station}}/g, ent.policeStationName || "")
-      .replace(/{{district}}/g, ent.divisionName || "");
+      .replace(/{{district}}/g, cleanDiv || ent.divisionName || "");
 
     const ccGroups = tpl.ccItems ? normalizeCcGroups(tpl.ccItems) : [];
 
@@ -513,11 +518,10 @@ const downloadWordDoc = () => {
           </tr>
         </table>
 
-        <div style="margin-bottom: 15pt; line-height: 1.35;">
-          <div class="bold">প্রাপক:</div>
-          <div class="bold">মেসার্স ${l.recipientName}</div>
-          <div>ঠিকানা: ${l.recipientAddress}</div>
-          <div>নিবন্ধন নং: ${l.recipientBin}</div>
+        <div style="margin-bottom: 15pt; line-height: 1.35; font-size: 12pt;">
+          <div class="bold" style="font-size: 12pt;">${cleanRecipientName(l.recipientName)}</div>
+          <div style="font-size: 12pt;">ঠিকানা: ${l.recipientAddress}</div>
+          <div style="font-size: 12pt;">নিবন্ধন নং: ${l.recipientBin}</div>
         </div>
 
         ${ccContent}

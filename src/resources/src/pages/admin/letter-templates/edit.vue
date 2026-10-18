@@ -331,9 +331,8 @@
           </div>
 
           <!-- Recipient -->
-          <div class="mt-0 mb-2" style="line-height: 1.35; font-size: 12pt; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
-            <div class="fw-bold mb-1" style="font-size: 12pt;">প্রাপক:</div>
-            <div style="font-size: 12pt;">মেসার্স &#123;&#123;entity_name&#125;&#125;</div>
+          <div class="mt-0 mb-2 text-dark" style="line-height: 1.35; font-size: 12pt; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
+            <div class="fw-bold" style="font-size: 12pt;">মেসার্স &#123;&#123;entity_name&#125;&#125;</div>
             <div style="font-size: 12pt;">ঠিকানা: &#123;&#123;address&#125;&#125;</div>
             <div style="font-size: 12pt;">নিবন্ধন নং: &#123;&#123;bin&#125;&#125;</div>
           </div>
@@ -792,7 +791,6 @@ const downloadWordDoc = () => {
   // Recipient HTML
   const recipientHtml = `
     <div style="margin-top: 6pt; margin-bottom: 10pt; font-family: 'NikoshBAN', 'Nikosh', 'SolaimanLipi', sans-serif; font-size: 12pt; line-height: 1.35;">
-      <div style="font-weight: bold; margin-bottom: 2pt; font-size: 12pt;">প্রাপক:</div>
       <div style="font-weight: bold; font-size: 12pt;">মেসার্স {{entity_name}}</div>
       <div style="font-size: 12pt;">ঠিকানা: {{address}}</div>
       <div style="font-size: 12pt;">নিবন্ধন নং: {{bin}}</div>
