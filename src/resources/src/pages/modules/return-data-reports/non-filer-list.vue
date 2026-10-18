@@ -733,32 +733,12 @@ const fetchNonFilerList = async () => {
     if (selectedForced.value.length > 0) params.append("reg", selectedForced.value.join(","));
     if (selectedMajorArea.value.length > 0) params.append("major", selectedMajorArea.value.join("|||"));
 
-    // Manufacturing: detect if user unchecked specific items from the full list
     if (selectedMfgArea.value.length > 0) {
-      const allMfg = uniqueMfgAreas.value;
-      if (allMfg.length > 0 && selectedMfgArea.value.length < allMfg.length) {
-        const uncheckedMfg = allMfg.filter((m) => !selectedMfgArea.value.includes(m));
-        // If user unchecked fewer items, send as exclusion
-        if (uncheckedMfg.length <= selectedMfgArea.value.length) {
-          params.append("excludeMfg", uncheckedMfg.join("|||"));
-        } else {
-          params.append("mfg", selectedMfgArea.value.join("|||"));
-        }
-      }
+      params.append("mfg", selectedMfgArea.value.join("|||"));
     }
 
-    // Service: detect if user unchecked specific items from the full list
     if (selectedServiceArea.value.length > 0) {
-      const allSvc = uniqueServiceAreas.value;
-      if (allSvc.length > 0 && selectedServiceArea.value.length < allSvc.length) {
-        const uncheckedSvc = allSvc.filter((s) => !selectedServiceArea.value.includes(s));
-        // If user unchecked fewer items (e.g. 2 out of 47), send as exclusion!
-        if (uncheckedSvc.length <= selectedServiceArea.value.length) {
-          params.append("excludeService", uncheckedSvc.join("|||"));
-        } else {
-          params.append("service", selectedServiceArea.value.join("|||"));
-        }
-      }
+      params.append("service", selectedServiceArea.value.join("|||"));
     }
 
     const res = await axios.get(`/api/return-data-analyser/non-filer-list?${params.toString()}`);
