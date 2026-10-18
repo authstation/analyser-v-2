@@ -141,7 +141,7 @@
                 </div>
                 <div v-for="(cc, cIdx) in currentForm.ccItems" :key="cIdx" class="d-flex gap-2 mb-2">
                   <input type="text" class="form-control form-control-sm form-dark-input text-white border-secondary" v-model="currentForm.ccItems[cIdx]" placeholder="e.g. সদয় অবগতির জন্যঃ কমিশনার, কাস্টমস, এক্সাইজ ও ভ্যাট..." />
-                  <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" @click="removeCcRow(cIdx)">
+                  <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" @click="removeCcRow(Number(cIdx))">
                     <i class="bi bi-trash"></i>
                   </button>
                 </div>
