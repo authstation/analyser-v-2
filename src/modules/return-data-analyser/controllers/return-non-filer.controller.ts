@@ -111,8 +111,11 @@ export const nonFilerList: Handler = async (c: any) => {
       const excludeOverlapSql = areaOverlap('"bin_data"."manufacturing_areas"', excludeMfgList);
       conditions.push(sql`NOT (${excludeOverlapSql})`);
     } else if (mfgList.length > 0) {
-      // User selected specific mfg items: strictly match those mfg items
-      conditions.push(areaOverlap('"bin_data"."manufacturing_areas"', mfgList));
+      // User selected specific mfg items: match matching mfg areas OR entities without any mfg area
+      const mfgOverlapSql = areaOverlap('"bin_data"."manufacturing_areas"', mfgList);
+      conditions.push(
+        sql`(${mfgOverlapSql} OR COALESCE(cardinality("bin_data"."manufacturing_areas"), 0) = 0)`
+      );
     }
 
     const excludeServiceList = parseAreaParam(filterExcludeService);
@@ -122,8 +125,11 @@ export const nonFilerList: Handler = async (c: any) => {
       const excludeOverlapSql = areaOverlap('"bin_data"."service_areas"', excludeServiceList);
       conditions.push(sql`NOT (${excludeOverlapSql})`);
     } else if (serviceList.length > 0) {
-      // User selected specific service items: strictly match those service items
-      conditions.push(areaOverlap('"bin_data"."service_areas"', serviceList));
+      // User selected specific service items: match matching service areas OR entities without any service area
+      const srvOverlapSql = areaOverlap('"bin_data"."service_areas"', serviceList);
+      conditions.push(
+        sql`(${srvOverlapSql} OR COALESCE(cardinality("bin_data"."service_areas"), 0) = 0)`
+      );
     }
 
     if (filterFromDate && filterFromDate.trim()) {
