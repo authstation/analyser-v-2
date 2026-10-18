@@ -201,11 +201,7 @@ const formatBnIndex = (index: number | string) => {
 
 const cleanRecipientName = (name: string) => {
   if (!name) return "";
-  const trimmed = name.trim();
-  if (/^(m\/s\.?|ms\.?|মেসার্স)\s*/i.test(trimmed)) {
-    return trimmed;
-  }
-  return `মেসার্স ${trimmed}`;
+  return name.trim();
 };
 
 const getBodyParagraphs = (body: string) => {

@@ -184,7 +184,7 @@
 
               <div class="border-top pt-3 mt-4">
                 <div class="fw-bold small mb-1">প্রাপক:</div>
-                <div class="small">মেসার্স &#123;&#123;entity_name&#125;&#125;</div>
+                <div class="small">&#123;&#123;entity_name&#125;&#125;</div>
                 <div class="small">ঠিকানা: &#123;&#123;address&#125;&#125;</div>
                 <div class="small">নিবন্ধন নং: &#123;&#123;bin&#125;&#125;</div>
               </div>

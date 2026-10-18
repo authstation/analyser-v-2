@@ -243,12 +243,7 @@ const formatBnIndex = (index: number | string) => {
 
 const cleanRecipientName = (name: string) => {
   if (!name) return "";
-  const trimmed = name.trim();
-  // If already starts with M/S, M/S., Ms, Ms. or মেসার্স, keep it clean
-  if (/^(m\/s\.?|ms\.?|মেসার্স)\s*/i.test(trimmed)) {
-    return trimmed;
-  }
-  return `মেসার্স ${trimmed}`;
+  return name.trim();
 };
 
 const getGroupItems = (group: any): string[] => {
