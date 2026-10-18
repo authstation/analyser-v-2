@@ -134,10 +134,10 @@
           </div>
 
           <!-- Recipient (Entity Details) - Left Aligned -->
-          <div class="mt-0 mb-2 text-dark" style="line-height: 1.35; font-size: 12pt; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
-            <div class="fw-bold" style="font-size: 12pt;">{{ cleanRecipientName(letterData.recipientName) }}</div>
-            <div style="font-size: 12pt;">ঠিকানা: {{ letterData.recipientAddress || '—' }}</div>
-            <div style="font-size: 12pt;">নিবন্ধন নং: {{ letterData.recipientBin || '—' }}</div>
+          <div class="mt-0 mb-2 text-dark" style="line-height: 1.35; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
+            <div class="fw-bold" style="font-size: 9pt;">{{ cleanRecipientName(letterData.recipientName) }}</div>
+            <div style="font-size: 10pt;">ঠিকানা: {{ letterData.recipientAddress || '—' }}</div>
+            <div style="font-size: 10pt;">নিবন্ধন নং: {{ letterData.recipientBin || '—' }}</div>
           </div>
 
           <!-- Copy to / CC Section (Purely controlled by template CC groups) -->
@@ -484,10 +484,10 @@ const downloadWordDoc = () => {
 
   // Recipient HTML
   const recipientHtml = `
-    <div style="margin-top: 6pt; margin-bottom: 10pt; font-family: 'NikoshBAN', 'Nikosh', 'SolaimanLipi', sans-serif; font-size: 12pt; line-height: 1.35;">
-      <div style="font-weight: bold; font-size: 12pt;">${cleanRecipientName(d.recipientName)}</div>
-      <div style="font-size: 12pt;">ঠিকানা: ${d.recipientAddress || ''}</div>
-      <div style="font-size: 12pt;">নিবন্ধন নং: ${d.recipientBin || ''}</div>
+    <div style="margin-top: 6pt; margin-bottom: 10pt; font-family: 'NikoshBAN', 'Nikosh', 'SolaimanLipi', sans-serif; line-height: 1.35;">
+      <div style="font-weight: bold; font-size: 9pt;">${cleanRecipientName(d.recipientName)}</div>
+      <div style="font-size: 10pt;">ঠিকানা: ${d.recipientAddress || ''}</div>
+      <div style="font-size: 10pt;">নিবন্ধন নং: ${d.recipientBin || ''}</div>
     </div>
   `;
 

@@ -331,10 +331,10 @@
           </div>
 
           <!-- Recipient -->
-          <div class="mt-0 mb-2 text-dark" style="line-height: 1.35; font-size: 12pt; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
-            <div class="fw-bold" style="font-size: 12pt;">মেসার্স &#123;&#123;entity_name&#125;&#125;</div>
-            <div style="font-size: 12pt;">ঠিকানা: &#123;&#123;address&#125;&#125;</div>
-            <div style="font-size: 12pt;">নিবন্ধন নং: &#123;&#123;bin&#125;&#125;</div>
+          <div class="mt-0 mb-2 text-dark" style="line-height: 1.35; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
+            <div class="fw-bold" style="font-size: 9pt;">মেসার্স &#123;&#123;entity_name&#125;&#125;</div>
+            <div style="font-size: 10pt;">ঠিকানা: &#123;&#123;address&#125;&#125;</div>
+            <div style="font-size: 10pt;">নিবন্ধন নং: &#123;&#123;bin&#125;&#125;</div>
           </div>
 
           <!-- CC Section & CC Signatory (Group-based rendering) -->
@@ -790,10 +790,10 @@ const downloadWordDoc = () => {
 
   // Recipient HTML
   const recipientHtml = `
-    <div style="margin-top: 6pt; margin-bottom: 10pt; font-family: 'NikoshBAN', 'Nikosh', 'SolaimanLipi', sans-serif; font-size: 12pt; line-height: 1.35;">
-      <div style="font-weight: bold; font-size: 12pt;">মেসার্স {{entity_name}}</div>
-      <div style="font-size: 12pt;">ঠিকানা: {{address}}</div>
-      <div style="font-size: 12pt;">নিবন্ধন নং: {{bin}}</div>
+    <div style="margin-top: 6pt; margin-bottom: 10pt; font-family: 'NikoshBAN', 'Nikosh', 'SolaimanLipi', sans-serif; line-height: 1.35;">
+      <div style="font-weight: bold; font-size: 9pt;">মেসার্স {{entity_name}}</div>
+      <div style="font-size: 10pt;">ঠিকানা: {{address}}</div>
+      <div style="font-size: 10pt;">নিবন্ধন নং: {{bin}}</div>
     </div>
   `;
 
