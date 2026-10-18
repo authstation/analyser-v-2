@@ -116,7 +116,7 @@
             
             <div class="d-flex mb-2">
               <span class="fw-bold me-3" style="min-width: 140px;">Address</span>
-              <span>: {{ selectedReport.address || 'N/A' }}</span>
+              <span>: {{ formatEntityAddress(selectedReport) || 'N/A' }}</span>
             </div>
             
             <div class="d-flex mb-2">
@@ -194,6 +194,28 @@ const loading = ref(false);
 const searchQuery = ref("");
 const showDropdown = ref(false);
 const selectedReport = ref<any | null>(null);
+
+const cleanZeroAddressParts = (addrStr: string) => {
+  if (!addrStr) return "";
+  return addrStr
+    .replace(/\b(holding|shope?|shop|plot|road|house|flat|line|block|sector)\s*(?:no|number)?\s*[:.\-]?\s*0+\b[,;\s]*/gi, "")
+    .replace(/\b0+\s*(?:no|number)\b[,;\s]*/gi, "")
+    .replace(/^[,;\s]+|[,;\s]+$/g, "")
+    .replace(/,\s*,+/g, ",")
+    .trim();
+};
+
+const formatEntityAddress = (ent: any) => {
+  if (!ent) return "";
+  const cleanedBaseAddr = cleanZeroAddressParts(ent.address || "");
+  const districtName = ent.district || ent.divisionName?.replace(/\s*division\s*/i, "").trim() || "";
+  const parts = [cleanedBaseAddr, ent.policeStationName, districtName].filter(Boolean);
+  let addr = parts.join(", ").trim();
+  if (addr && !addr.endsWith(".")) {
+    addr += ".";
+  }
+  return addr;
+};
 
 // Autocomplete suggestions are fetched on demand (debounced) and never
 // preloaded, so opening the tab keeps the screen idle with no spinner.

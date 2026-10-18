@@ -260,6 +260,7 @@ export const nonFilerList: Handler = async (c: any) => {
           circleName: ent.circleName,
           policeStationName: ent.policeStationName,
           divisionName: ent.divisionName,
+          district: ent.district || "",
           binStatus: ent.binStatus
         });
       }
