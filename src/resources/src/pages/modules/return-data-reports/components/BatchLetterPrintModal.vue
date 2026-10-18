@@ -302,14 +302,25 @@ const prepareBatchLetters = async () => {
   const results: any[] = [];
   const currentDate = new Date().toLocaleDateString("en-GB").replace(/\//g, ".");
 
+  const cleanZeroAddressParts = (addrStr: string) => {
+    if (!addrStr) return "";
+    return addrStr
+      .replace(/\b(holding|shope?|shop|plot|road|house|flat|line|block|sector)\s*(?:no|number)?\s*[:.\-]?\s*0+\b[,;\s]*/gi, "")
+      .replace(/\b0+\s*(?:no|number)\b[,;\s]*/gi, "")
+      .replace(/^[,;\s]+|[,;\s]+$/g, "")
+      .replace(/,\s*,+/g, ",")
+      .trim();
+  };
+
   for (let i = 0; i < props.entities.length; i++) {
     const ent = props.entities[i];
     progressCount.value = i + 1;
 
     // Use original English name and address with District directly from database
     const rawName = ent.name || "";
+    const cleanedBaseAddr = cleanZeroAddressParts(ent.address || "");
     const districtName = ent.district || ent.divisionName?.replace(/\s*division\s*/i, "").trim() || "";
-    const parts = [ent.address, ent.policeStationName, districtName].filter(Boolean);
+    const parts = [cleanedBaseAddr, ent.policeStationName, districtName].filter(Boolean);
     let rawAddress = parts.join(", ").trim();
     if (rawAddress && !rawAddress.endsWith(".")) {
       rawAddress += ".";

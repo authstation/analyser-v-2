@@ -312,10 +312,21 @@ const letterData = ref<any>({
 // Uses shared transliterateToBengali from utils/transliterate
 
 
+const cleanZeroAddressParts = (addrStr: string) => {
+  if (!addrStr) return "";
+  return addrStr
+    .replace(/\b(holding|shope?|shop|plot|road|house|flat|line|block|sector)\s*(?:no|number)?\s*[:.\-]?\s*0+\b[,;\s]*/gi, "")
+    .replace(/\b0+\s*(?:no|number)\b[,;\s]*/gi, "")
+    .replace(/^[,;\s]+|[,;\s]+$/g, "")
+    .replace(/,\s*,+/g, ",")
+    .trim();
+};
+
 const formatEntityAddress = (ent: any) => {
   if (!ent) return "";
+  const cleanedBaseAddr = cleanZeroAddressParts(ent.address || "");
   const districtName = ent.district || ent.divisionName?.replace(/\s*division\s*/i, "").trim() || "";
-  const parts = [ent.address, ent.policeStationName, districtName].filter(Boolean);
+  const parts = [cleanedBaseAddr, ent.policeStationName, districtName].filter(Boolean);
   let addr = parts.join(", ").trim();
   if (addr && !addr.endsWith(".")) {
     addr += ".";
