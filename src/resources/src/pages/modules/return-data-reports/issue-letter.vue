@@ -320,7 +320,7 @@ const cleanZeroAddressParts = (addrStr: string) => {
 const formatEntityAddress = (ent: any) => {
   if (!ent) return "";
   const cleanedBaseAddr = cleanZeroAddressParts(ent.address || "");
-  const districtName = ent.district || ent.divisionName?.replace(/\s*division\s*/i, "").trim() || "";
+  const districtName = ent.district || "";
   const parts = [cleanedBaseAddr, ent.policeStationName, districtName].filter(Boolean);
   let addr = parts.join(", ").trim();
   if (addr && !addr.endsWith(".")) {
@@ -399,7 +399,7 @@ const applyTemplateData = (tpl: any) => {
   let populatedBody = tpl.bodyHtml || "";
   const ent = entityData.value;
   if (ent) {
-    const districtName = ent.district || ent.divisionName?.replace(/\s*division\s*/i, "").trim() || "";
+    const districtName = ent.district || "";
     populatedBody = populatedBody
       .replace(/{{entity_name}}/g, letterData.value.recipientName || ent.name || "")
       .replace(/{{bin}}/g, ent.bin || "")

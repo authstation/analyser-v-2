@@ -208,7 +208,7 @@ const cleanZeroAddressParts = (addrStr: string) => {
 const formatEntityAddress = (ent: any) => {
   if (!ent) return "";
   const cleanedBaseAddr = cleanZeroAddressParts(ent.address || "");
-  const districtName = ent.district || ent.divisionName?.replace(/\s*division\s*/i, "").trim() || "";
+  const districtName = ent.district || "";
   const parts = [cleanedBaseAddr, ent.policeStationName, districtName].filter(Boolean);
   let addr = parts.join(", ").trim();
   if (addr && !addr.endsWith(".")) {
@@ -288,16 +288,26 @@ const onSearchInput = () => {
   debounceTimer = setTimeout(() => fetchSuggestions(term), 300);
 };
 
+let isSelecting = false;
+
 const onFocus = () => {
+  if (isSelecting) return;
   showDropdown.value = true;
   // Refresh suggestions on focus so the dropdown never shows stale results.
   if (searchQuery.value.trim().length >= minSuggestLength) onSearchInput();
 };
 
 const selectReport = (report: any) => {
-  searchQuery.value = report.bin;
+  isSelecting = true;
   showDropdown.value = false;
+  suggestions.value = [];
+  suggestionsLoaded.value = false;
+  searchQuery.value = report.bin;
   fetchReport(report.bin);
+  setTimeout(() => {
+    isSelecting = false;
+    showDropdown.value = false;
+  }, 350);
 };
 
 // Enter (or the search icon / Refresh) performs an explicit search for the

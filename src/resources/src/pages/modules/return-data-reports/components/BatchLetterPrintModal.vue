@@ -315,7 +315,7 @@ const prepareBatchLetters = async () => {
     // Use original English name and address with District directly from database
     const rawName = ent.name || "";
     const cleanedBaseAddr = cleanZeroAddressParts(ent.address || "");
-    const districtName = ent.district || ent.divisionName?.replace(/\s*division\s*/i, "").trim() || "";
+    const districtName = ent.district || "";
     const parts = [cleanedBaseAddr, ent.policeStationName, districtName].filter(Boolean);
     let rawAddress = parts.join(", ").trim();
     if (rawAddress && !rawAddress.endsWith(".")) {
