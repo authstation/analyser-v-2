@@ -49,8 +49,8 @@
           </div>
         </div>
 
-        <!-- Dynamic Variable Insertion Bar -->
-        <div class="d-print-none mb-3">
+        <!-- Dynamic Variable Insertion Bar (Only shown in Edit Mode) -->
+        <div class="d-print-none mb-3" v-if="!viewFinalMode">
           <VariableBar @insert="insertVariable" />
         </div>
 
@@ -374,7 +374,7 @@ const route = useRoute();
 const entityBin = ref(String(route.query.bin || ""));
 const loading = ref(false);
 const saving = ref(false);
-const viewFinalMode = ref(false);
+const viewFinalMode = ref(true);
 const selectedFont = ref<string>("'NikoshBAN', 'Nikosh', sans-serif");
 const templates = ref<any[]>([]);
 const selectedTemplateId = ref<number | null>(null);
