@@ -55,7 +55,7 @@
                   <div class="text-dark" style="font-size: 12pt; font-weight: normal; margin-bottom: 2px;">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার</div>
                   <div class="fw-bold text-dark" style="font-size: 12pt; margin-bottom: 2px;">{{ letter.officeName || 'কাস্টমস, এক্সাইজ ও ভ্যাট বিভাগ' }}</div>
                   <div class="text-dark" style="font-size: 12pt; margin-bottom: 2px;" v-if="letter.officeAddress">{{ letter.officeAddress }}</div>
-                  <div class="text-dark" style="font-size: 12pt;" v-if="letter.officeEmail">ইমেইল: {{ letter.officeEmail }}</div>
+                  <div class="text-dark" style="font-size: 10pt;" v-if="letter.officeEmail">ইমেইল: {{ letter.officeEmail }}</div>
                 </div>
               </div>
 
@@ -490,7 +490,7 @@ const downloadWordDoc = () => {
           <div style="font-size: 12pt;">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার</div>
           <div class="bold" style="font-size: 12pt;">${l.officeName || 'কাস্টমস, এক্সাইজ ও ভ্যাট বিভাগ'}</div>
           ${l.officeAddress ? `<div style="font-size: 12pt;">${l.officeAddress}</div>` : ''}
-          ${l.officeEmail ? `<div style="font-size: 12pt;">ইমেইল: ${l.officeEmail}</div>` : ''}
+          ${l.officeEmail ? `<div style="font-size: 10pt;">ইমেইল: ${l.officeEmail}</div>` : ''}
         </div>
 
         <table style="width: 100%; margin-bottom: 10pt;">

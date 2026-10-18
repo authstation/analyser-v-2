@@ -276,7 +276,7 @@
               <div class="text-dark" style="font-size: 12pt; font-weight: normal; margin-bottom: 2px;">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার</div>
               <div class="text-dark fw-bold" style="font-size: 12pt; margin-bottom: 2px;">{{ form.officeName || '[দপ্তরের নাম ও বিভাগ]' }}</div>
               <div class="text-dark" style="font-size: 12pt; margin-bottom: 2px;" v-if="form.officeAddress">{{ form.officeAddress }}</div>
-              <div class="text-dark" style="font-size: 12pt;" v-if="form.officeEmail">ইমেইল: {{ form.officeEmail }}</div>
+              <div class="text-dark" style="font-size: 10pt;" v-if="form.officeEmail">ইমেইল: {{ form.officeEmail }}</div>
             </div>
           </div>
 
@@ -913,7 +913,7 @@ const downloadWordDoc = () => {
         <div style="font-size: 12pt;">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার</div>
         <div style="font-size: 12pt; font-weight: bold;">${f.officeName || '[দপ্তরের নাম ও বিভাগ]'}</div>
         ${f.officeAddress ? `<div style="font-size: 12pt;">${f.officeAddress}</div>` : ''}
-        ${f.officeEmail ? `<div style="font-size: 12pt;">ইমেইল: ${f.officeEmail}</div>` : ''}
+        ${f.officeEmail ? `<div style="font-size: 10pt;">ইমেইল: ${f.officeEmail}</div>` : ''}
       </div>
 
       <!-- File No and Date -->
