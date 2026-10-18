@@ -8,6 +8,9 @@
         </button>
       </div>
       <div class="d-flex align-items-center gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-warning" @click="resetToAdminDefault" title="এডমিনের মূল সেটাপে রিসেট করুন">
+          <i class="bi bi-arrow-counterclockwise me-1"></i> রিসেট টু ডিফল্ট (Reset to Default)
+        </button>
         <button class="btn btn-outline-secondary" @click="previewMode = !previewMode">
           <i :class="previewMode ? 'bi bi-pencil-square' : 'bi bi-eye'" class="me-1"></i>
           {{ previewMode ? 'Back to Editor' : 'Live Preview' }}
@@ -590,6 +593,56 @@ const loadTemplate = async () => {
     console.error("Failed to load template", err);
     alert("Template not found.");
     router.push("/admin/letter-templates");
+  } finally {
+    loading.value = false;
+  }
+};
+
+const resetToAdminDefault = async () => {
+  if (!confirm("আপনি কি নিশ্চিত যে এই টেমপ্লেটের সকল তথ্য রিসেট করে এডমিনের মূল ডিফল্ট সেটাপে ফেরত নিতে চান?")) {
+    return;
+  }
+  loading.value = true;
+  try {
+    const res = await axios.get("/api/letter-templates");
+    const list = res.data?.data || [];
+    // Find the base admin default template (userId is null or first created template)
+    const adminDefault = list.find((t: any) => !t.userId) || list[list.length - 1] || list[0];
+    if (!adminDefault) {
+      alert("এডমিনের কোনো মূল ডিফল্ট টেমপ্লেট পাওয়া যায়নি।");
+      return;
+    }
+
+    form.value.officeName = adminDefault.officeName || "";
+    form.value.officeAddress = adminDefault.officeAddress || "";
+    form.value.officeEmail = adminDefault.officeEmail || "";
+    form.value.defaultFileNo = adminDefault.defaultFileNo || "";
+    form.value.secondaryLogo = adminDefault.secondaryLogo || "";
+    form.value.subject = adminDefault.subject || "";
+    form.value.reference = adminDefault.reference || "";
+    form.value.bodyHtml = adminDefault.bodyHtml || "";
+    form.value.signatoryTitle = adminDefault.signatoryTitle || "(শেখ শাহির আহমেদ)";
+    form.value.signatorySubtitle = adminDefault.signatorySubtitle || "সহকারী কমিশনার\nও\nবিভাগীয় কর্মকর্তা";
+    form.value.ccSignatoryTitle = adminDefault.ccSignatoryTitle || "";
+    form.value.ccSignatorySubtitle = adminDefault.ccSignatorySubtitle || "";
+    form.value.ccGroups = normalizeCcGroups(adminDefault.ccItems);
+
+    if (adminDefault.secondaryLogo) {
+      if (adminDefault.secondaryLogo.startsWith("http://") || adminDefault.secondaryLogo.startsWith("https://")) {
+        logoSource.value = "url";
+        logoUrlInput.value = adminDefault.secondaryLogo;
+      } else {
+        logoSource.value = "file";
+      }
+    } else {
+      logoSource.value = "none";
+      logoUrlInput.value = "";
+    }
+
+    alert("এডমিনের মূল সেটাপ সফলভাবে রিস্টোর করা হয়েছে। প্রয়োজনমতো পরিবর্তন করে 'Save Template' এ ক্লিক করুন।");
+  } catch (err) {
+    console.error("Failed to reset to admin default", err);
+    alert("এডমিনের মূল সেটাপ লোড করতে ব্যর্থ হয়েছে।");
   } finally {
     loading.value = false;
   }

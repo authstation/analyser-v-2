@@ -10,13 +10,6 @@
       </div>
       
       <div class="d-flex align-items-center gap-2">
-        <button class="btn btn-outline-warning" @click="resetToDefault" title="Reset to admin default template">
-          <i class="bi bi-arrow-counterclockwise me-1"></i> Reset to Default
-        </button>
-        <button class="btn btn-outline-info" @click="saveDraft" :disabled="saving">
-          <span v-if="saving" class="spinner-border spinner-border-sm me-1"></span>
-          <i v-else class="bi bi-save me-1"></i> Save for Me
-        </button>
         <button class="btn btn-primary" @click="downloadWordDoc" title="Download as Microsoft Word (.docx / .doc)">
           <i class="bi bi-file-earmark-word me-1"></i> Word Download
         </button>
@@ -49,37 +42,6 @@
           </div>
         </div>
 
-        <!-- Dynamic Variable Insertion Bar (Only shown in Edit Mode) -->
-        <div class="d-print-none mb-3" v-if="!viewFinalMode">
-          <VariableBar @insert="insertVariable" />
-        </div>
-
-        <!-- Mode Toggle & Print Header (d-print-none) -->
-        <div class="d-flex justify-content-between align-items-center mb-3 d-print-none flex-wrap gap-2">
-          <div class="d-flex align-items-center gap-2">
-            <div class="btn-group">
-              <button 
-                class="btn btn-sm" 
-                :class="!viewFinalMode ? 'btn-danger text-white fw-bold' : 'btn-outline-secondary text-light'"
-                @click="viewFinalMode = false"
-              >
-                <i class="bi bi-pencil-square me-1"></i> এডিট মোড (Edit Mode)
-              </button>
-              <button 
-                class="btn btn-sm" 
-                :class="viewFinalMode ? 'btn-danger text-white fw-bold' : 'btn-outline-secondary text-light'"
-                @click="viewFinalMode = true"
-              >
-                <i class="bi bi-eye me-1"></i> ফাইনাল ভিউ (Final View)
-              </button>
-            </div>
-          </div>
-
-          <span class="text-muted small">
-            <i class="bi bi-info-circle me-1"></i> ফাইনাল ভিউ মোডে সরকারি প্যাডের রূপরেখা দেখতে পাবেন।
-          </span>
-        </div>
-
         <!-- The Official Letter Paper (A4 Printable Area) -->
         <div 
           class="official-paper bg-white text-dark shadow mx-auto mb-5 position-relative" 
@@ -96,35 +58,9 @@
             <div class="text-center" style="line-height: 1.25; padding: 0 90px;">
               <img src="/logo-favicon/bd-logo.svg" alt="Govt Logo" style="height: 60px; width: 60px; object-fit: contain;" class="mb-1 d-inline-block" />
               <div class="text-dark" style="font-size: 12pt; font-weight: normal; margin-bottom: 2px;">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার</div>
-              
-              <!-- In Final View: Clean Typography / In Edit Mode: Clean Inputs -->
-              <div v-if="viewFinalMode">
-                <div class="fw-bold text-dark" style="font-size: 12pt; margin-bottom: 2px;">{{ letterData.officeName || 'কাস্টমস, এক্সাইজ ও ভ্যাট বিভাগ' }}</div>
-                <div class="text-dark" style="font-size: 12pt; margin-bottom: 2px;" v-if="letterData.officeAddress">{{ letterData.officeAddress }}</div>
-                <div class="text-dark" style="font-size: 12pt;" v-if="letterData.officeEmail">ইমেইল: {{ letterData.officeEmail }}</div>
-              </div>
-              <div v-else>
-              <input 
-                type="text" 
-                class="form-control text-center fw-bold border-0 border-bottom border-light-subtle rounded-0 p-1 letter-input text-dark" 
-                style="font-size: 12pt;"
-                placeholder="[অফিসের নাম ও বিভাগ লিখুন, যেমন: কাস্টমস, এক্সাইজ ও ভ্যাট বিভাগ, ব্রাহ্মণবাড়িয়া]" 
-                v-model="letterData.officeName" 
-              />
-              <input 
-                type="text" 
-                class="form-control text-center border-0 border-bottom border-light-subtle rounded-0 p-1 mt-1 letter-input text-dark" 
-                style="font-size: 12pt;"
-                placeholder="[অফিসের ঠিকানা লিখুন, যেমন: বাড়ি নং- ১৩৫৭/ক, মা টাওয়ার, ব্রাহ্মণবাড়িয়া]" 
-                v-model="letterData.officeAddress" 
-              />
-              <input 
-                type="text" 
-                class="form-control text-center border-0 rounded-0 p-1 letter-input text-dark" 
-                style="font-size: 12pt;"
-                placeholder="[ইমেইল ও যোগাযোগ লিখুন, যেমন: cevc.bbariadivision@gmail.com]" 
-                v-model="letterData.officeEmail" 
-              />
+              <div class="fw-bold text-dark" style="font-size: 12pt; margin-bottom: 2px;">{{ letterData.officeName || 'কাস্টমস, এক্সাইজ ও ভ্যাট বিভাগ' }}</div>
+              <div class="text-dark" style="font-size: 12pt; margin-bottom: 2px;" v-if="letterData.officeAddress">{{ letterData.officeAddress }}</div>
+              <div class="text-dark" style="font-size: 12pt;" v-if="letterData.officeEmail">ইমেইল: {{ letterData.officeEmail }}</div>
             </div>
           </div>
 
@@ -132,16 +68,11 @@
           <div class="d-flex justify-content-between align-items-baseline mb-3" style="font-size: 12pt;">
             <div class="d-flex align-items-baseline flex-grow-1 me-3">
               <span class="fw-bold me-1 text-nowrap">নথি নং:</span>
-              <span v-if="viewFinalMode">{{ letterData.fileNo || '—' }}</span>
-              <input v-else type="text" class="form-control form-control-sm border-0 border-bottom border-secondary rounded-0 p-0 letter-input text-dark" style="font-size: 12pt;" placeholder="নথি বা স্মারক নম্বর লিখুন" v-model="letterData.fileNo" />
+              <span>{{ letterData.fileNo || '—' }}</span>
             </div>
             <div class="d-flex align-items-baseline justify-content-end text-nowrap" style="min-width: 220px;">
               <span class="fw-bold me-1">তারিখ :</span>
-              <span v-if="viewFinalMode">{{ letterData.letterDate }} খ্রিষ্টাব্দ</span>
-              <div v-else class="d-flex align-items-baseline">
-                <input type="text" class="form-control form-control-sm border-0 border-bottom border-secondary rounded-0 p-0 letter-input text-dark text-end" style="width: 140px; font-size: 12pt;" placeholder="তারিখ লিখুন" v-model="letterData.letterDate" />
-                <span class="ms-1">খ্রিষ্টাব্দ</span>
-              </div>
+              <span>{{ letterData.letterDate }} খ্রিষ্টাব্দ</span>
             </div>
           </div>
 
@@ -149,82 +80,55 @@
           <div class="mb-3" style="line-height: 1.5;">
             <!-- বিষয়: সবসময় বোল্ড, 12pt -->
             <div class="mb-1" style="font-size: 12pt;">
-              <div v-if="viewFinalMode" class="d-flex align-items-baseline" style="font-size: 12pt;">
+              <div class="d-flex align-items-baseline" style="font-size: 12pt;">
                 <span class="fw-bold text-dark text-nowrap" style="width: 60px; min-width: 60px; display: inline-block;">বিষয়:</span>
                 <div class="fw-bold text-dark flex-grow-1" style="text-align: justify; text-justify: inter-word;">
                   {{ letterData.subject }}
                 </div>
               </div>
-              <div v-else class="d-flex align-items-baseline">
-                <span class="fw-bold text-nowrap" style="width: 60px; min-width: 60px; display: inline-block;">বিষয়:</span>
-                <input type="text" class="form-control fw-bold border-0 border-bottom border-secondary rounded-0 p-0 letter-input text-dark" style="font-size: 12pt; font-weight: bold;" v-model="letterData.subject" placeholder="পত্রের বিষয় লিখুন" />
-              </div>
             </div>
 
             <!-- সূত্র: 12pt, regular -->
-            <div style="font-size: 12pt;" v-if="letterData.reference || !viewFinalMode">
-              <div v-if="viewFinalMode" class="d-flex align-items-baseline" style="font-size: 12pt;">
+            <div style="font-size: 12pt;" v-if="letterData.reference">
+              <div class="d-flex align-items-baseline" style="font-size: 12pt;">
                 <span class="fw-bold text-dark text-nowrap" style="width: 60px; min-width: 60px; display: inline-block;">সূত্র:</span>
                 <div class="text-dark flex-grow-1" style="text-align: justify; text-justify: inter-word;">
                   {{ letterData.reference }}
                 </div>
-              </div>
-              <div v-else class="d-flex align-items-baseline">
-                <span class="fw-bold text-nowrap" style="width: 60px; min-width: 60px; display: inline-block;">সূত্র:</span>
-                <input type="text" class="form-control border-0 border-bottom border-secondary rounded-0 p-0 letter-input text-dark" style="font-size: 12pt;" v-model="letterData.reference" placeholder="সূত্র উল্লেখ করুন" />
               </div>
             </div>
           </div>
 
           <!-- Main Body Paragraphs (Indented, Fully Justified, Official Line Spacing) -->
           <div class="mb-4 mt-3">
-            <!-- Final View / Print View -->
             <div 
-              v-if="viewFinalMode" 
               class="official-body-rendered text-dark" 
               style="font-size: 12pt; line-height: 1.3; text-align: justify; text-justify: inter-word;"
             >
-                <template v-for="(para, pIdx) in formattedBodyParagraphs" :key="pIdx">
-                  <div 
-                    v-if="parseParagraph(para).prefix" 
-                    class="d-flex align-items-baseline"
-                    style="margin-bottom: 6px;"
-                  >
-                    <span class="text-nowrap" style="width: 60px; min-width: 60px; display: inline-block;">{{ parseParagraph(para).prefix }}</span>
-                    <div class="flex-grow-1" style="text-align: justify; text-justify: inter-word;" v-html="renderParagraphHtml(parseParagraph(para).content)"></div>
-                  </div>
-                  <div 
-                    v-else 
-                    style="margin-bottom: 6px; padding-left: 60px; text-align: justify; text-justify: inter-word;"
-                    v-html="renderParagraphHtml(para)"
-                  ></div>
-                </template>
-            </div>
-
-            <!-- Edit Mode Textarea -->
-            <div v-else>
-              <textarea 
-                ref="letterBodyTextarea" 
-                rows="15" 
-                class="form-control border-0 p-2 letter-body-textarea text-dark font-bangla-letter" 
-                style="resize: vertical; line-height: 1.5; text-align: justify; text-justify: inter-word; font-size: 12pt;"
-                v-model="letterData.body"
-              ></textarea>
+              <template v-for="(para, pIdx) in formattedBodyParagraphs" :key="pIdx">
+                <div 
+                  v-if="parseParagraph(para).prefix" 
+                  class="d-flex align-items-baseline"
+                  style="margin-bottom: 6px;"
+                >
+                  <span class="text-nowrap" style="width: 60px; min-width: 60px; display: inline-block;">{{ parseParagraph(para).prefix }}</span>
+                  <div class="flex-grow-1" style="text-align: justify; text-justify: inter-word;" v-html="renderParagraphHtml(parseParagraph(para).content)"></div>
+                </div>
+                <div 
+                  v-else 
+                  style="margin-bottom: 6px; padding-left: 60px; text-align: justify; text-justify: inter-word;"
+                  v-html="renderParagraphHtml(para)"
+                ></div>
+              </template>
             </div>
           </div>
 
           <!-- Primary Signatory Block (Right Aligned, Standard Spacing) -->
           <div class="d-flex justify-content-end text-center mt-3 mb-1">
             <div style="min-width: 250px; line-height: 1.25;">
-              <div v-if="viewFinalMode">
-                <div class="fw-bold text-dark mb-1" style="font-size: 12pt;">{{ letterData.signatoryName || '(শেখ শাহির আহমেদ)' }}</div>
-                <div v-for="(line, lIdx) in (letterData.signatoryDesignation || 'সহকারী কমিশনার\nও\nবিভাগীয় কর্মকর্তা').split('\n')" :key="lIdx" class="text-dark" style="font-size: 12pt;">
-                  {{ line.trim() }}
-                </div>
-              </div>
-              <div v-else>
-                <input type="text" class="form-control text-center fw-bold border-0 border-bottom border-light-subtle rounded-0 p-1 letter-input text-dark mb-1" style="font-size: 12pt;" placeholder="[স্বাক্ষরকারীর নাম]" v-model="letterData.signatoryName" />
-                <textarea rows="3" class="form-control text-center border-0 border-bottom border-light-subtle rounded-0 p-1 letter-input text-dark" style="font-size: 12pt; resize: vertical;" placeholder="[পদবী লিখুন, একাধিক পদবী Enter দিয়ে নিচে নিচে লিখুন]" v-model="letterData.signatoryDesignation"></textarea>
+              <div class="fw-bold text-dark mb-1" style="font-size: 12pt;">{{ letterData.signatoryName || '(শেখ শাহির আহমেদ)' }}</div>
+              <div v-for="(line, lIdx) in (letterData.signatoryDesignation || 'সহকারী কমিশনার\nও\nবিভাগীয় কর্মকর্তা').split('\n')" :key="lIdx" class="text-dark" style="font-size: 12pt;">
+                {{ line.trim() }}
               </div>
             </div>
           </div>
@@ -232,124 +136,47 @@
           <!-- Recipient (Entity Details) - Left Aligned -->
           <div class="mt-0 mb-2" style="line-height: 1.35; font-size: 12pt; font-family: 'NikoshBAN', 'Nikosh', sans-serif;">
             <div class="fw-bold mb-1">প্রাপক:</div>
-            
-            <div v-if="viewFinalMode">
-              <div class="fw-bold text-dark">{{ cleanRecipientName(letterData.recipientName) }}</div>
-              <div class="text-dark">ঠিকানা: {{ letterData.recipientAddress || '—' }}</div>
-              <div class="text-dark">নিবন্ধন নং: {{ letterData.recipientBin || '—' }}</div>
-            </div>
-
-            <div v-else>
-              <div class="d-flex align-items-baseline mb-1">
-                <span class="me-2 text-nowrap">মেসার্স</span>
-                <input type="text" class="form-control form-control-sm border-0 border-bottom border-light-subtle rounded-0 p-0 fw-bold letter-input text-dark" style="font-size: 12pt;" v-model="letterData.recipientName" />
-              </div>
-              <div class="d-flex align-items-baseline mb-1">
-                <span class="me-2 text-nowrap">ঠিকানা:</span>
-                <input type="text" class="form-control form-control-sm border-0 border-bottom border-light-subtle rounded-0 p-0 letter-input text-dark" style="font-size: 12pt;" v-model="letterData.recipientAddress" />
-              </div>
-              <div class="d-flex align-items-baseline">
-                <span class="me-2 text-nowrap">নিবন্ধন নং:</span>
-                <input type="text" class="form-control form-control-sm border-0 border-bottom border-light-subtle rounded-0 p-0 letter-input text-dark" style="font-size: 12pt;" v-model="letterData.recipientBin" />
-              </div>
-            </div>
+            <div class="fw-bold text-dark">{{ cleanRecipientName(letterData.recipientName) }}</div>
+            <div class="text-dark">ঠিকানা: {{ letterData.recipientAddress || '—' }}</div>
+            <div class="text-dark">নিবন্ধন নং: {{ letterData.recipientBin || '—' }}</div>
           </div>
 
-          <!-- Copy to / CC Section (Dynamic & Checkbox controlled) -->
+          <!-- Copy to / CC Section (Purely controlled by template CC groups) -->
           <div 
             class="cc-section-block mt-2" 
-            v-if="letterData.includeCc || !viewFinalMode" 
+            v-if="letterData.ccGroups && letterData.ccGroups.length > 0" 
             style="font-family: 'NikoshBAN', 'Nikosh', sans-serif; break-inside: avoid; page-break-inside: avoid;"
           >
-            <div class="d-flex justify-content-between align-items-center mb-2 d-print-none">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="ccSwitch" v-model="letterData.includeCc">
-                <label class="form-check-label small fw-bold" for="ccSwitch">অনুলিপি অন্তর্ভুক্ত করুন (Include CC)</label>
-              </div>
-              <button v-if="letterData.includeCc && !viewFinalMode" class="btn btn-xs btn-outline-info py-0 px-2" @click="addCcGroup">
-                <i class="bi bi-folder-plus me-1"></i> নতুন অনুলিপি গ্রুপ যোগ করুন
-              </button>
+            <!-- Header File No & Date for CC Section -->
+            <div class="d-flex justify-content-between align-items-baseline mb-2" style="font-size: 12pt;">
+              <div>নথি নং- {{ letterData.fileNo || '—' }}</div>
+              <div>তারিখ : {{ letterData.letterDate }} খ্রিষ্টাব্দ</div>
             </div>
 
-            <div v-if="letterData.includeCc">
-              <!-- Header File No & Date for CC Section -->
-              <div class="d-flex justify-content-between align-items-baseline mb-2" style="font-size: 12pt;">
-                <div>নথি নং- {{ letterData.fileNo || '—' }}</div>
-                <div>তারিখ : {{ letterData.letterDate }} খ্রিষ্টাব্দ</div>
+            <!-- Group-wise Output -->
+            <div v-for="(group, gIdx) in letterData.ccGroups" :key="gIdx" class="mb-2">
+              <div class="fw-bold mb-1" style="font-size: 12pt;">
+                <u>{{ group.heading }}</u>
               </div>
-
-              <!-- Final View Mode: Clean Group-wise Output -->
-              <div v-if="viewFinalMode">
-                <div v-for="(group, gIdx) in letterData.ccGroups" :key="gIdx" class="mb-2">
-                  <div class="fw-bold mb-1" style="font-size: 12pt;">
-                    <u>{{ group.heading }}</u>
-                  </div>
-                  <div 
-                    v-for="(item, iIdx) in getGroupItems(group)" 
-                    :key="iIdx" 
-                    class="d-flex align-items-baseline"
-                    style="font-size: 12pt; line-height: 1.3; margin-bottom: 3px;"
-                  >
-                    <span class="text-nowrap" style="width: 35px; min-width: 35px; display: inline-block;">{{ formatBnIndex(iIdx) }}</span>
-                    <div class="flex-grow-1" style="text-align: justify; text-justify: inter-word;">
-                      {{ item }}
-                    </div>
-                  </div>
+              <div 
+                v-for="(item, iIdx) in getGroupItems(group)" 
+                :key="iIdx" 
+                class="d-flex align-items-baseline"
+                style="font-size: 12pt; line-height: 1.3; margin-bottom: 3px;"
+              >
+                <span class="text-nowrap" style="width: 35px; min-width: 35px; display: inline-block;">{{ formatBnIndex(iIdx) }}</span>
+                <div class="flex-grow-1" style="text-align: justify; text-justify: inter-word;">
+                  {{ item }}
                 </div>
               </div>
+            </div>
 
-              <!-- Edit Mode: Interactive Group Builder with Textarea -->
-              <div v-else>
-                <div v-for="(group, gIdx) in letterData.ccGroups" :key="gIdx" class="card bg-light border p-2 mb-3">
-                  <div class="mb-2">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                      <label class="form-label small text-primary fw-bold mb-0" style="font-size: 0.85rem;">গ্রুপের শিরোনাম</label>
-                      <button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none d-print-none" style="font-size: 0.85rem;" @click="removeCcGroup(Number(gIdx))" title="Remove Group">
-                        <i class="bi bi-trash me-1"></i> গ্রুপ মুছুন
-                      </button>
-                    </div>
-                    <input 
-                      type="text" 
-                      class="form-control form-control-sm fw-bold border-0 border-bottom border-secondary rounded-0 p-0 letter-input text-dark" 
-                      style="font-size: 12pt;"
-                      placeholder="[অনুলিপি গ্রুপের শিরোনাম, যেমন: অনুলিপি সদয় অবগতির জন্য: / অনুলিপি অবগতি ও প্রয়োজনীয় কার্যার্থে:]" 
-                      v-model="group.heading" 
-                    />
-                  </div>
-
-                  <!-- Recipients inside this group (Textarea for multiple lines) -->
-                  <div class="ps-2 border-start border-2 border-primary">
-                    <label class="form-label small text-muted mb-1" style="font-size: 0.8rem;">
-                      এই গ্রুপের প্রাপক তালিকা (Enter দিয়ে প্রতিটি প্রাপক নিচে নিচে লিখুন, চিঠিতে ০১, ০২ স্বয়ংক্রিয়ভাবে বসবে):
-                    </label>
-                    <textarea 
-                      rows="3" 
-                      class="form-control form-control-sm border-0 border-bottom border-light-subtle rounded-0 p-1 letter-input text-dark" 
-                      style="font-size: 12pt; line-height: 1.4; resize: vertical;" 
-                      v-model="group.text" 
-                      placeholder="কমিশনার, কাস্টমস, এক্সাইজ ও ভ্যাট কমিশনারেট, কুমিল্লা।&#10;যুগ্ম কমিশনার, কাস্টমস, এক্সাইজ ও ভ্যাট কমিশনারেট, কুমিল্লা।"
-                    ></textarea>
-                  </div>
-                </div>
-
-                <div v-if="!letterData.ccGroups || letterData.ccGroups.length === 0" class="text-muted small fst-italic p-2 text-center">
-                  কোনো অনুলিপি গ্রুপ নেই। উপরে 'নতুন অনুলিপি গ্রুপ যোগ করুন' বাটনে ক্লিক করুন।
-                </div>
-              </div>
-
-              <!-- Secondary Signatory for CC (Right Aligned, multi-line) -->
-              <div v-if="letterData.ccGroups && letterData.ccGroups.length > 0" class="d-flex justify-content-end text-center mt-4">
-                <div style="min-width: 240px; line-height: 1.25;">
-                  <div v-if="viewFinalMode">
-                    <div class="fw-bold text-dark mb-1" style="font-size: 12pt;">{{ letterData.ccSignatoryName || letterData.signatoryName || '(শেখ শাহির আহমেদ)' }}</div>
-                    <div v-for="(line, lIdx) in (letterData.ccSignatoryDesignation || letterData.signatoryDesignation || 'সহকারী কমিশনার\nও\nবিভাগীয় কর্মকর্তা').split('\n')" :key="lIdx" class="text-dark" style="font-size: 12pt;">
-                      {{ line.trim() }}
-                    </div>
-                  </div>
-                  <div v-else>
-                    <input type="text" class="form-control text-center fw-bold border-0 border-bottom border-light-subtle rounded-0 p-1 letter-input text-dark mb-1" style="font-size: 12pt;" placeholder="[অনুলিপি স্বাক্ষরকারী]" v-model="letterData.ccSignatoryName" />
-                    <textarea rows="3" class="form-control text-center border-0 border-bottom border-light-subtle rounded-0 p-1 letter-input text-dark" style="font-size: 12pt; resize: vertical;" placeholder="[পদবী লিখুন, একাধিক পদবী Enter দিয়ে নিচে নিচে লিখুন]" v-model="letterData.ccSignatoryDesignation"></textarea>
-                  </div>
+            <!-- Secondary Signatory for CC (Right Aligned) -->
+            <div class="d-flex justify-content-end text-center mt-4">
+              <div style="min-width: 240px; line-height: 1.25;">
+                <div class="fw-bold text-dark mb-1" style="font-size: 12pt;">{{ letterData.ccSignatoryName || letterData.signatoryName || '(শেখ শাহির আহমেদ)' }}</div>
+                <div v-for="(line, lIdx) in (letterData.ccSignatoryDesignation || letterData.signatoryDesignation || 'সহকারী কমিশনার\nও\nবিভাগীয় কর্মকর্তা').split('\n')" :key="lIdx" class="text-dark" style="font-size: 12pt;">
+                  {{ line.trim() }}
                 </div>
               </div>
             </div>
@@ -359,26 +186,19 @@
       </div>
     </div>
   </div>
-</div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import VariableBar from "@/pages/admin/letter-templates/components/VariableBar.vue";
 import axios from "@/plugins/axios";
-import { transliterateToBengali } from "@/utils/transliterate";
 
 const route = useRoute();
 
 const entityBin = ref(String(route.query.bin || ""));
 const loading = ref(false);
-const saving = ref(false);
-const viewFinalMode = ref(true);
-const selectedFont = ref<string>("'NikoshBAN', 'Nikosh', sans-serif");
 const templates = ref<any[]>([]);
 const selectedTemplateId = ref<number | null>(null);
-const letterBodyTextarea = ref<HTMLTextAreaElement | null>(null);
 
 const entityData = ref<any>(null);
 
@@ -532,9 +352,9 @@ const loadTemplates = async () => {
 };
 
 const formatBnMonthYear = (dateStr: string | null) => {
-  if (!dateStr) return "জুলাই ২০২৬";
+  if (!dateStr) return "জুলাই/২০১৯";
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "জুলাই ২০২৬";
+  if (isNaN(d.getTime())) return "জুলাই/২০১৯";
   const bnMonths = [
     "জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন",
     "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"
@@ -542,7 +362,7 @@ const formatBnMonthYear = (dateStr: string | null) => {
   const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
   const mName = bnMonths[d.getMonth()];
   const yStr = String(d.getFullYear()).split("").map((ch) => bnDigits[Number(ch)] || ch).join("");
-  return `${mName} ${yStr}`;
+  return `${mName}/${yStr}`;
 };
 
 const toBnNumber = (num: number | string) => {
@@ -593,62 +413,8 @@ const onTemplateChange = () => {
   if (tpl) applyTemplateData(tpl);
 };
 
-const addCcGroup = () => {
-  if (!letterData.value.ccGroups) letterData.value.ccGroups = [];
-  letterData.value.ccGroups.push({
-    heading: "অনুলিপি অবগতি ও প্রয়োজনীয় কার্যার্থে:",
-    text: ""
-  });
-};
-
-const removeCcGroup = (gIdx: number) => {
-  letterData.value.ccGroups.splice(gIdx, 1);
-};
-
-const insertVariable = (varKey: string) => {
-  const textarea = letterBodyTextarea.value;
-  const tag = `{{${varKey}}}`;
-  if (!textarea) {
-    letterData.value.body += tag;
-    return;
-  }
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const text = letterData.value.body;
-  letterData.value.body = text.substring(0, start) + tag + text.substring(end);
-  setTimeout(() => {
-    textarea.focus();
-    textarea.setSelectionRange(start + tag.length, start + tag.length);
-  }, 50);
-};
-
-const resetToDefault = () => {
-  const tpl = templates.value.find((t) => t.id === selectedTemplateId.value) || templates.value[0];
-  if (tpl) applyTemplateData(tpl);
-};
-
-const saveDraft = async () => {
-  saving.value = true;
-  try {
-    await axios.post("/api/letter-templates/draft", {
-      templateId: selectedTemplateId.value,
-      entityBin: entityBin.value || null,
-      customData: letterData.value
-    });
-    alert("Draft saved successfully for this entity!");
-  } catch (err) {
-    console.error("Save draft error", err);
-    alert("Failed to save draft.");
-  } finally {
-    saving.value = false;
-  }
-};
-
 const printLetter = () => {
-  viewFinalMode.value = true;
-  setTimeout(() => {
-    window.print();
-  }, 100);
+  window.print();
 };
 
 const downloadWordDoc = () => {
@@ -890,36 +656,6 @@ onMounted(async () => {
   try {
     await loadEntityData();
     await loadTemplates();
-
-    if (entityBin.value) {
-      // Check if user has an existing saved draft for this BIN
-      try {
-        const res = await axios.get(`/api/letter-templates/draft?bin=${encodeURIComponent(entityBin.value)}`);
-        if (res.data?.data?.customData) {
-          const draft = res.data.data.customData;
-          if (draft.ccGroups) {
-            draft.ccGroups = normalizeCcGroups(draft.ccGroups);
-          } else if (draft.ccItems) {
-            draft.ccGroups = normalizeCcGroups(draft.ccItems);
-          }
-          const liveRecipientName = letterData.value.recipientName;
-          const liveRecipientAddress = letterData.value.recipientAddress;
-          const liveRecipientBin = letterData.value.recipientBin;
-
-          letterData.value = { ...letterData.value, ...draft };
-
-          if (!letterData.value.recipientName && liveRecipientName) {
-            letterData.value.recipientName = liveRecipientName;
-          }
-          if (!letterData.value.recipientAddress && liveRecipientAddress) {
-            letterData.value.recipientAddress = liveRecipientAddress;
-          }
-          if (!letterData.value.recipientBin && liveRecipientBin) {
-            letterData.value.recipientBin = liveRecipientBin;
-          }
-        }
-      } catch {}
-    }
   } finally {
     loading.value = false;
   }

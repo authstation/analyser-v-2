@@ -272,9 +272,9 @@ const normalizeCcGroups = (raw: any): any[] => {
 };
 
 const formatBnMonthYear = (dateStr: string | null) => {
-  if (!dateStr) return "জুলাই ২০২৬";
+  if (!dateStr) return "জুলাই/২০১৯";
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "জুলাই ২০২৬";
+  if (isNaN(d.getTime())) return "জুলাই/২০১৯";
   const bnMonths = [
     "জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন",
     "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"
@@ -282,7 +282,7 @@ const formatBnMonthYear = (dateStr: string | null) => {
   const bnDigits = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
   const mName = bnMonths[d.getMonth()];
   const yStr = String(d.getFullYear()).split("").map((ch) => bnDigits[Number(ch)] || ch).join("");
-  return `${mName} ${yStr}`;
+  return `${mName}/${yStr}`;
 };
 
 const toBnNumber = (num: number | string) => {
