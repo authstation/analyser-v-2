@@ -38,9 +38,17 @@
               <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 text-uppercase">
                 {{ tpl.category || 'NOTICE' }}
               </span>
-              <span class="badge" :class="tpl.isActive ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle'">
-                {{ tpl.isActive ? 'Active' : 'Inactive' }}
-              </span>
+              <div class="d-flex gap-1">
+                <span v-if="!tpl.userId" class="badge bg-info-subtle text-info border border-info-subtle">
+                  <i class="bi bi-globe me-1"></i>Official / Global
+                </span>
+                <span v-else class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                  <i class="bi bi-person-fill me-1"></i>My Template
+                </span>
+                <span class="badge" :class="tpl.isActive ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle'">
+                  {{ tpl.isActive ? 'Active' : 'Inactive' }}
+                </span>
+              </div>
             </div>
             <h5 class="fw-bold text-light mb-2">{{ tpl.title }}</h5>
             <p class="text-muted small mb-3 flex-grow-1" style="line-height: 1.5;">{{ tpl.description || 'No description provided.' }}</p>
@@ -50,8 +58,11 @@
                 <strong>Subject:</strong> {{ tpl.subject || '-' }}
               </div>
               <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-info flex-grow-1" @click="openEditModal(tpl)">
-                  <i class="bi bi-pencil-square me-1"></i> Edit Template
+                <button v-if="canEditTemplate(tpl)" class="btn btn-sm btn-outline-info flex-grow-1" @click="openEditModal(tpl)">
+                  <i class="bi bi-pencil-square me-1"></i> Edit
+                </button>
+                <button class="btn btn-sm btn-outline-warning flex-grow-1" @click="cloneTemplate(tpl)" title="Add copy to my profile to customize office & signatories">
+                  <i class="bi bi-copy me-1"></i> Clone to My Profile
                 </button>
                 <button class="btn btn-sm btn-outline-secondary" @click="openPreviewModal(tpl)" title="Preview">
                   <i class="bi bi-eye"></i>
@@ -260,6 +271,24 @@ const openPreviewModal = (tpl: any) => {
     name: "admin-letter-templates-edit",
     params: { id: tpl.id },
     query: { preview: "true" }
+  });
+  window.open(routeData.href, "_blank");
+};
+
+import { authUser } from "@/composables/useAuth";
+
+const canEditTemplate = (tpl: any) => {
+  // If user is admin, can edit all. If normal user, can edit their own customized templates
+  if (authUser.value?.role?.name === "admin" || authUser.value?.role?.name === "superadmin") {
+    return true;
+  }
+  return Boolean(tpl.userId && tpl.userId === authUser.value?.id);
+};
+
+const cloneTemplate = (tpl: any) => {
+  const routeData = router.resolve({
+    name: "admin-letter-templates-create",
+    query: { cloneFrom: tpl.id }
   });
   window.open(routeData.href, "_blank");
 };

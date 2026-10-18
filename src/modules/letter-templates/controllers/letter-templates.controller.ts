@@ -1,6 +1,6 @@
 import type { Handler } from "hono";
 import { db } from "@/framework/facade.js";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql, isNull } from "drizzle-orm";
 import { letterTemplates, userLetterDrafts } from "@/modules/letter-templates/database/models/letter-templates.js";
 
 /**
@@ -36,10 +36,29 @@ async function ensureDefaultTemplate() {
 
 /**
  * GET /api/letter-templates
+ * Returns global admin templates (userId IS NULL) AND user-specific custom templates (userId = current user)
  */
 export const index: Handler = async (c: any) => {
   await ensureDefaultTemplate();
-  const list = await db.select().from(letterTemplates).orderBy(desc(letterTemplates.id));
+  const user = c.get("auth");
+  const userId = user?.sub ?? user?.id;
+
+  const conditions = [eq(letterTemplates.isActive, true)];
+  if (userId) {
+    // Return templates that are either global (userId is null) OR owned by this user
+    const list = await db
+      .select()
+      .from(letterTemplates)
+      .where(sql`(${letterTemplates.userId} IS NULL OR ${letterTemplates.userId} = ${userId})`)
+      .orderBy(desc(letterTemplates.id));
+    return c.json({ data: list });
+  }
+
+  const list = await db
+    .select()
+    .from(letterTemplates)
+    .where(isNull(letterTemplates.userId))
+    .orderBy(desc(letterTemplates.id));
   return c.json({ data: list });
 };
 
@@ -57,10 +76,20 @@ export const show: Handler = async (c: any) => {
 
 /**
  * POST /api/letter-templates
+ * Admin can create global (userId null); non-admin/user creates their own personal template (userId = current user)
  */
 export const store: Handler = async (c: any) => {
+  const user = c.get("auth");
+  const userId = user?.sub ?? user?.id;
   const body = c.req.valid("json");
-  const inserted = await db.insert(letterTemplates).values(body).returning();
+
+  // If body doesn't specify userId, attach current user's id unless admin intentionally makes it null
+  const payload = {
+    ...body,
+    userId: body.userId !== undefined ? body.userId : userId
+  };
+
+  const inserted = await db.insert(letterTemplates).values(payload).returning();
   return c.json({ message: "Template created successfully", data: inserted[0] }, 201);
 };
 

@@ -7,6 +7,7 @@ export const CcGroupItemSchema = z.object({
 
 export const LetterTemplateSchema = z.object({
   id: z.number(),
+  userId: z.number().nullable().optional(),
   title: z.string(),
   category: z.string(),
   description: z.string().nullable().optional(),
@@ -29,6 +30,7 @@ export const LetterTemplateSchema = z.object({
 });
 
 export const CreateLetterTemplateSchema = z.object({
+  userId: z.number().optional().nullable(),
   title: z.string().min(1),
   category: z.string().default("non-filer-notice"),
   description: z.string().optional(),

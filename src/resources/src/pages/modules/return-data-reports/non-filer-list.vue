@@ -220,18 +220,50 @@
 
       <!-- Data Table Card -->
       <div class="card bg-dark border-secondary shadow-sm flex-grow-1 overflow-hidden d-flex flex-column">
-      <div class="card-header border-secondary d-flex justify-content-between align-items-center py-3 flex-wrap gap-2 d-print-none">
-        <div class="d-flex align-items-center">
-          <h5 class="mb-0 fw-bold text-light me-3">Non Filer List</h5>
+      <div class="card-header border-secondary d-flex justify-content-between align-items-center py-2 flex-wrap gap-2 d-print-none bg-dark">
+        <div class="d-flex align-items-center flex-wrap gap-2">
+          <h5 class="mb-0 fw-bold text-light me-2">Non Filer List</h5>
           <span class="badge bg-white text-danger">{{ filteredList.length }} Records</span>
+          <span v-if="selectedBins.length > 0" class="badge bg-warning text-dark fw-bold">
+            {{ selectedBins.length }} Selected
+          </span>
         </div>
         
-        <!-- Search Field on Table Header -->
-        <div class="d-flex justify-content-end align-items-center ms-auto">
+        <!-- Center/Right: Template Selector & Batch Actions -->
+        <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+          <!-- Template Selector Dropdown -->
+          <div class="d-flex align-items-center gap-1">
+            <label class="small text-muted fw-bold text-nowrap d-none d-md-inline">Letter Template:</label>
+            <select 
+              class="form-select form-select-sm bg-dark text-light border-secondary shadow-none" 
+              style="width: 250px; height: 34px;"
+              v-model="selectedTemplateId"
+              title="Select Letter Template to Issue"
+            >
+              <option v-for="t in letterTemplatesList" :key="t.id" :value="t.id">
+                {{ t.title }} {{ t.userId ? '(My Template)' : '(Official)' }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Batch Print Button -->
+          <button 
+            class="btn btn-sm btn-success d-flex align-items-center gap-1 shadow-none"
+            style="height: 34px;"
+            :disabled="effectiveBatchEntities.length === 0 || !activeSelectedTemplate"
+            @click="openBatchPrintModal"
+            title="Batch print sequential official letters for selected or all filers"
+          >
+            <i class="bi bi-printer-fill"></i>
+            <span class="d-none d-sm-inline">Batch Print</span>
+            <span class="badge bg-black bg-opacity-50 text-white rounded-pill ms-1">{{ effectiveBatchEntities.length }}</span>
+          </button>
+
+          <!-- Search Field on Table Header -->
           <SearchInput
             v-model="searchQuery"
             placeholder="Search BIN, Entity, Mobile..."
-            width="270px"
+            width="220px"
           />
         </div>
       </div>
@@ -240,7 +272,17 @@
         <table class="table table-dark table-bordered align-middle mb-0 custom-table">
           <thead class="table-dark sticky-top text-nowrap">
             <tr>
-              <th style="width: 50px;" class="text-center">#</th>
+              <th style="width: 40px;" class="text-center">
+                <input 
+                  type="checkbox" 
+                  class="form-check-input cursor-pointer" 
+                  :checked="isAllPageSelected" 
+                  :indeterminate.prop="isSomePageSelected"
+                  @change="toggleSelectAllPage"
+                  title="Select / Unselect this page"
+                />
+              </th>
+              <th style="width: 45px;" class="text-center">#</th>
               <th>Entity Details</th>
               <th class="text-center" style="width: 130px;">Mobile</th>
               <th class="text-center">Eligible</th>
@@ -252,9 +294,17 @@
           </thead>
           <tbody>
             <tr v-if="paginatedList.length === 0">
-              <td colspan="8" class="text-center py-4 text-muted">No non-filer entities found.</td>
+              <td colspan="9" class="text-center py-4 text-muted">No non-filer entities found.</td>
             </tr>
             <tr v-for="(row, idx) in paginatedList" :key="row.bin">
+              <td class="text-center">
+                <input 
+                  type="checkbox" 
+                  class="form-check-input cursor-pointer" 
+                  :value="row.bin" 
+                  v-model="selectedBins"
+                />
+              </td>
               <td class="text-center text-muted">{{ (currentPage - 1) * pageSize + idx + 1 }}</td>
               <td>
                 <div class="fw-bold text-info">{{ row.name || 'N/A' }}</div>
@@ -321,7 +371,15 @@
       </div>
     </div>
   </template>
-</div>
+
+    <!-- Batch Letter Print Modal -->
+    <BatchLetterPrintModal
+      :show="showBatchPrintModal"
+      :template="activeSelectedTemplate"
+      :entities="effectiveBatchEntities"
+      @close="showBatchPrintModal = false"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -329,6 +387,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import MultiSelectDropdown from "@/components/common/MultiSelectDropdown.vue";
 import SearchInput from "@/components/common/SearchInput.vue";
+import BatchLetterPrintModal from "./components/BatchLetterPrintModal.vue";
 import axios from "@/plugins/axios";
 
 const router = useRouter();
@@ -356,11 +415,71 @@ const searchQuery = ref(savedState?.searchQuery || "");
 const currentPage = ref(savedState?.currentPage || 1);
 const pageSize = ref(10);
 
+// Letter templates & Batch Print state
+const letterTemplatesList = ref<any[]>([]);
+const selectedTemplateId = ref<number | null>(null);
+const selectedBins = ref<string[]>([]);
+const showBatchPrintModal = ref(false);
+
+const activeSelectedTemplate = computed(() => {
+  return letterTemplatesList.value.find((t) => t.id === selectedTemplateId.value) || null;
+});
+
+const isAllPageSelected = computed(() => {
+  if (paginatedList.value.length === 0) return false;
+  return paginatedList.value.every((row: any) => selectedBins.value.includes(row.bin));
+});
+
+const isSomePageSelected = computed(() => {
+  if (isAllPageSelected.value) return false;
+  return paginatedList.value.some((row: any) => selectedBins.value.includes(row.bin));
+});
+
+const toggleSelectAllPage = (e: Event) => {
+  const checked = (e.target as HTMLInputElement).checked;
+  const pageBins = paginatedList.value.map((r: any) => r.bin);
+  if (checked) {
+    const set = new Set([...selectedBins.value, ...pageBins]);
+    selectedBins.value = Array.from(set);
+  } else {
+    selectedBins.value = selectedBins.value.filter((b) => !pageBins.includes(b));
+  }
+};
+
+const effectiveBatchEntities = computed(() => {
+  if (selectedBins.value.length > 0) {
+    return listData.value.filter((row: any) => selectedBins.value.includes(row.bin));
+  }
+  // If none explicitly selected, use all filtered list
+  return filteredList.value;
+});
+
+const openBatchPrintModal = () => {
+  if (effectiveBatchEntities.value.length === 0 || !activeSelectedTemplate.value) return;
+  showBatchPrintModal.value = true;
+};
+
+const loadLetterTemplates = async () => {
+  try {
+    const res = await axios.get("/api/letter-templates");
+    letterTemplatesList.value = res.data?.data || [];
+    if (letterTemplatesList.value.length > 0 && !selectedTemplateId.value) {
+      selectedTemplateId.value = letterTemplatesList.value[0].id;
+    }
+  } catch (err) {
+    console.error("Failed to load letter templates:", err);
+  }
+};
+
 // Open Issue Letter page in a new browser tab
 const openIssueLetterModal = (row: any) => {
+  const query: Record<string, any> = { bin: row.bin };
+  if (selectedTemplateId.value) {
+    query.templateId = selectedTemplateId.value;
+  }
   const routeData = router.resolve({
     name: "return-issue-letter",
-    query: { bin: row.bin }
+    query
   });
   window.open(routeData.href, "_blank");
 };
@@ -784,7 +903,7 @@ const downloadExcel = () => {
 };
 
 onMounted(async () => {
-  await fetchFilterOptions();
+  await Promise.all([fetchFilterOptions(), loadLetterTemplates()]);
   setTimeout(() => {
     isInitialMount.value = false;
   }, 100);

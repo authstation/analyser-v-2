@@ -184,6 +184,11 @@
                   <i class="bi bi-person-check me-2 text-info"></i><span>My Profile</span>
                 </router-link>
               </li>
+              <li>
+                <router-link class="dropdown-item py-2 d-flex align-items-center" to="/admin/letter-templates" @click="isUserMenuOpen = false">
+                  <i class="bi bi-file-earmark-richtext me-2 text-danger"></i><span>Letter Templates</span>
+                </router-link>
+              </li>
               <li v-if="!isAdmin">
                 <router-link class="dropdown-item py-2 d-flex align-items-center" to="/my-subscriptions" @click="isUserMenuOpen = false">
                   <i class="bi bi-building-check me-2 text-primary"></i><span>My Subscriptions</span>

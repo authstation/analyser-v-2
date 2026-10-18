@@ -82,7 +82,6 @@ export const routes = [
         component: () => import("@/pages/admin/letter-templates/index.vue"),
         meta: {
           requiresAuth: true,
-          requiresAdmin: true,
           headerTitle: "Letter Templates",
           headerIcon: "bi-file-earmark-richtext",
           headerColor: "text-danger"
@@ -94,8 +93,7 @@ export const routes = [
         component: () => import("@/pages/admin/letter-templates/edit.vue"),
         meta: {
           requiresAuth: true,
-          requiresAdmin: true,
-          headerTitle: "Create Letter Template",
+          headerTitle: "Create / Clone Letter Template",
           headerIcon: "bi-file-earmark-plus",
           headerColor: "text-danger"
         }
@@ -106,7 +104,6 @@ export const routes = [
         component: () => import("@/pages/admin/letter-templates/edit.vue"),
         meta: {
           requiresAuth: true,
-          requiresAdmin: true,
           headerTitle: "Edit Letter Template",
           headerIcon: "bi-file-earmark-text",
           headerColor: "text-danger"

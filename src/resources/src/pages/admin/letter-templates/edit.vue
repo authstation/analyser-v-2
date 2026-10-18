@@ -546,15 +546,17 @@ const loadTemplate = async () => {
   if (route.query.preview === "true") {
     previewMode.value = true;
   }
-  if (isNew.value) return;
+  const sourceId = route.query.cloneFrom ? Number(route.query.cloneFrom) : templateId.value;
+  if (!sourceId && isNew.value) return;
   loading.value = true;
   try {
-    const res = await axios.get(`/api/letter-templates/${templateId.value}`);
+    const res = await axios.get(`/api/letter-templates/${sourceId}`);
     if (res.data?.data) {
       const data = res.data.data;
+      const isCloning = Boolean(route.query.cloneFrom);
       form.value = {
-        id: data.id,
-        title: data.title || "",
+        id: isCloning ? null : data.id,
+        title: isCloning ? `${data.title} (আমার কাস্টমাইজড)` : (data.title || ""),
         category: data.category || "non-filer-notice",
         officeName: data.officeName || "",
         officeAddress: data.officeAddress || "",

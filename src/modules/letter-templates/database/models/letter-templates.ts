@@ -4,6 +4,7 @@ import { users } from "@/modules/auth/database/models/user.js";
 
 export const letterTemplates = pgTable("letter_templates", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }), // null = Global Admin template, number = User's custom saved template
   title: text("title").notNull(),
   category: text("category").default("non-filer-notice").notNull(),
   description: text("description"),
