@@ -264,7 +264,7 @@ const applyTemplateData = (tpl: any) => {
       )
       .replace(/{{circle_name}}/g, ent.circleName || "")
       .replace(/{{police_station}}/g, ent.policeStationName || "")
-      .replace(/{{district}}/g, ent.divisionName || "");
+      .replace(/{{district}}/g, ent.district || "");
   }
 
   letterData.value.body = populatedBody;
@@ -345,7 +345,7 @@ watch(
       await loadTemplates();
       if (props.entity) {
         letterData.value.recipientName = props.entity.name || "";
-        letterData.value.recipientAddress = [props.entity.address, props.entity.policeStationName, props.entity.divisionName]
+        letterData.value.recipientAddress = [props.entity.address, props.entity.policeStationName, props.entity.district]
           .filter(Boolean)
           .join(", ");
         letterData.value.recipientBin = props.entity.bin || "";

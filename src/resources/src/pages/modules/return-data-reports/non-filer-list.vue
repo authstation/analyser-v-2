@@ -816,6 +816,29 @@ const formatEconomicActivity = (row: any) => {
   return activities.length > 0 ? activities.join(", ") : "";
 };
 
+const cleanZeroAddressParts = (addrStr: string) => {
+  if (!addrStr) return "";
+  return addrStr
+    .replace(/\b(holding|shope?|shop|plot|road|house|flat|line|block|sector)\s*(?:no|number)?\s*[:.\-]?\s*0+\b[,;\s]*/gi, "")
+    .replace(/\b0+\s*(?:no|number)\b[,;\s]*/gi, "")
+    .replace(/^[,;\s]+|[,;\s]+$/g, "")
+    .replace(/,\s*,+/g, ",")
+    .trim();
+};
+
+const formatEntityAddress = (row: any) => {
+  if (!row) return "";
+  const cleanedBaseAddr = cleanZeroAddressParts(row.address && row.address !== "N/A" && row.address !== "-" ? row.address : "");
+  const ps = row.policeStationName && row.policeStationName !== "N/A" ? row.policeStationName.trim() : "";
+  const districtName = row.district && row.district !== "N/A" ? row.district.trim() : "";
+  const parts = [cleanedBaseAddr, ps, districtName].filter(Boolean);
+  let addr = parts.join(", ").trim();
+  if (addr && !addr.endsWith(".")) {
+    addr += ".";
+  }
+  return addr;
+};
+
 const downloadExcel = () => {
   const data = filteredList.value;
   if (data.length === 0) return;
@@ -843,17 +866,7 @@ const downloadExcel = () => {
       const name = `"${(row.name || "").replace(/"/g, '""')}"`;
 
       // Combine "Address, Police Station, District"
-      const addrParts: string[] = [];
-      if (row.address && row.address !== "N/A" && row.address !== "-") {
-        addrParts.push(row.address.trim());
-      }
-      if (row.policeStationName && row.policeStationName !== "N/A") {
-        addrParts.push(row.policeStationName.trim());
-      }
-      if (row.divisionName && row.divisionName !== "N/A") {
-        addrParts.push(row.divisionName.trim());
-      }
-      const fullAddressStr = addrParts.join(", ");
+      const fullAddressStr = formatEntityAddress(row);
       const address = `"${fullAddressStr.replace(/"/g, '""')}"`;
 
       const economicActivity = `"${formatEconomicActivity(row).replace(/"/g, '""')}"`;
