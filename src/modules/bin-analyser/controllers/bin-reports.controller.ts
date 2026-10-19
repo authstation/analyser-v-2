@@ -296,6 +296,7 @@ export const search: Handler = async (c: any) => {
       areasOfService: binData.areasOfService,
       email: binData.email, mobile: binData.mobile, address: binData.address,
       policeStation: policeStations.name, eTin: binData.eTin,
+      district: sql<string>`coalesce(${binData.rawJson}::jsonb->>'District', ${binData.rawJson}::jsonb->>'district', '')`,
       circleId: binData.circleId, divisionId: binData.divisionId,
       circleName: circles.name, divisionName: divisions.name
     }).from(binData)

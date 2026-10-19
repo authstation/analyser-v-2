@@ -155,7 +155,7 @@
                   <th style="width: 150px;" class="text-muted">
                     <div class="d-flex justify-content-between"><span>Address</span> <span>:</span></div>
                   </th>
-                  <td class="fw-bold px-3">{{ selectedEntity.address || '-' }}</td>
+                  <td class="fw-bold px-3">{{ formatEntityAddress(selectedEntity) || '-' }}</td>
                 </tr>
                 <tr>
                   <th class="text-muted">
@@ -168,6 +168,12 @@
                     <div class="d-flex justify-content-between"><span>Email</span> <span>:</span></div>
                   </th>
                   <td class="fw-bold px-3">{{ selectedEntity.email || '-' }}</td>
+                </tr>
+                <tr>
+                  <th class="text-muted">
+                    <div class="d-flex justify-content-between"><span>e-TIN</span> <span>:</span></div>
+                  </th>
+                  <td class="fw-bold px-3 font-monospace text-info">{{ selectedEntity.eTin || '-' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -322,6 +328,28 @@ watch([searchQuery, searchCircles, searchPoliceStations], ([q, circles, ps]) => 
     }
   }, 300); // 300ms debounce
 });
+
+const cleanZeroAddressParts = (addrStr: string) => {
+  if (!addrStr) return "";
+  return addrStr
+    .replace(/\b(holding|shope?|shop|plot|road|house|flat|line|block|sector)\s*(?:no|number)?\s*[:.\-]?\s*0+\b[,;\s]*/gi, "")
+    .replace(/\b0+\s*(?:no|number)\b[,;\s]*/gi, "")
+    .replace(/^[,;\s]+|[,;\s]+$/g, "")
+    .replace(/,\s*,+/g, ",")
+    .trim();
+};
+
+const formatEntityAddress = (ent: any) => {
+  if (!ent) return "";
+  const cleanedBaseAddr = cleanZeroAddressParts(ent.address || "");
+  const districtName = ent.district || "";
+  const parts = [cleanedBaseAddr, ent.policeStation, districtName].filter(Boolean);
+  let addr = parts.join(", ").trim();
+  if (addr && !addr.endsWith(".")) {
+    addr += ".";
+  }
+  return addr;
+};
 
 const viewDetails = (entity: any) => {
   selectedEntity.value = entity;
