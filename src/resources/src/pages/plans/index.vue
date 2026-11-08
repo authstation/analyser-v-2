@@ -54,6 +54,12 @@
         <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}
       </div>
 
+      <!-- Empty State -->
+      <div v-else-if="displayedPlans.length === 0" class="text-center py-5">
+        <i class="bi bi-tags text-muted fs-1 d-block mb-3"></i>
+        <h5 class="text-muted fw-normal mb-0">No active plans found</h5>
+      </div>
+
       <!-- Pricing Plans Grid -->
       <div v-else class="row justify-content-center g-4">
         <div 
@@ -308,11 +314,7 @@ const submitUpgrade = async () => {
 
 const displayedPlans = computed(() => {
   if (!plans.value || plans.value.length === 0) {
-    return [
-      { id: 1, name: 'Basic Plan', price: 500, durationDays: 30, maxCircles: 1, isActive: true },
-      { id: 2, name: 'Standard Plan', price: 1000, durationDays: 30, maxCircles: 3, isActive: true },
-      { id: 3, name: 'Premium Plan', price: 2000, durationDays: 30, maxCircles: 9999, isActive: true }
-    ];
+    return [];
   }
   const activeOnly = plans.value.filter((p: any) => p.isActive !== false);
   const list = activeOnly.length > 0 ? activeOnly : plans.value;

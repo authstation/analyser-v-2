@@ -222,7 +222,8 @@ onMounted(async () => {
       }
     } catch (err) {
       console.error('Failed to load plan details', err);
-      triggerToast('Failed to load the selected plan. Please try again.', 'error');
+      triggerToast('Failed to load the selected plan. Redirecting to pricing...', 'error');
+      setTimeout(() => router.push('/pricing'), 2000);
     }
   }
 });
