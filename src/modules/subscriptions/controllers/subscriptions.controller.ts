@@ -394,35 +394,26 @@ export const changeCircleSubscription: Handler = async (c: any) => {
       return c.json({ error: "User not found" }, HttpStatusCodes.NOT_FOUND);
     }
 
-    if (user.role !== "admin" && user.paymentStatus !== "approved") {
+    // Admin override: Admin can change circle for ANY user if userId is passed
+    const isAdmin = user.role === "admin";
+    const body = await c.req.json();
+    const targetUserId = (isAdmin && body.userId) ? Number(body.userId) : auth.id;
+
+    if (!isAdmin && user.paymentStatus !== "approved") {
       return c.json({ error: "Active subscription required to change office" }, HttpStatusCodes.FORBIDDEN);
     }
 
-    if (user.role !== "admin" && user.hasChangedCircle) {
+    if (!isAdmin && user.hasChangedCircle) {
       return c.json({ 
         error: "You have already used your 1-time office change allowance. Please contact administration for further changes." 
       }, HttpStatusCodes.FORBIDDEN);
     }
 
-    const body = await c.req.json();
-    const fromCircleId = Number(body.fromCircleId);
+    const fromCircleId = body.fromCircleId ? Number(body.fromCircleId) : null;
     const toCircleId = Number(body.toCircleId);
 
-    if (isNaN(fromCircleId) || isNaN(toCircleId) || fromCircleId === toCircleId) {
-      return c.json({ error: "Please select a valid different target office" }, HttpStatusCodes.BAD_REQUEST);
-    }
-
-    // Verify current subscription is approved
-    const currentSub = await db.query.subscriptions.findFirst({
-      where: and(
-        eq(subscriptions.userId, auth.id),
-        eq(subscriptions.circleId, fromCircleId),
-        eq(subscriptions.status, "approved")
-      ),
-    });
-
-    if (!currentSub) {
-      return c.json({ error: "Source office is not currently active in your subscriptions" }, HttpStatusCodes.BAD_REQUEST);
+    if (isNaN(toCircleId)) {
+      return c.json({ error: "Please select a valid target office" }, HttpStatusCodes.BAD_REQUEST);
     }
 
     // Check target circle exists
@@ -434,15 +425,47 @@ export const changeCircleSubscription: Handler = async (c: any) => {
       return c.json({ error: "Selected target office does not exist" }, HttpStatusCodes.NOT_FOUND);
     }
 
-    // Deactivate old subscription
-    await db
-      .update(subscriptions)
-      .set({ status: "inactive", updatedAt: new Date() })
-      .where(eq(subscriptions.id, currentSub.id));
+    // If fromCircleId is provided, deactivate that specific subscription
+    if (fromCircleId && !isNaN(fromCircleId)) {
+      if (fromCircleId === toCircleId) {
+        return c.json({ error: "Target office must be different from source office" }, HttpStatusCodes.BAD_REQUEST);
+      }
+
+      const currentSub = await db.query.subscriptions.findFirst({
+        where: and(
+          eq(subscriptions.userId, targetUserId),
+          eq(subscriptions.circleId, fromCircleId),
+          eq(subscriptions.status, "approved")
+        ),
+      });
+
+      if (!currentSub && !isAdmin) {
+        return c.json({ error: "Source office is not currently active in subscriptions" }, HttpStatusCodes.BAD_REQUEST);
+      }
+
+      if (currentSub) {
+        await db
+          .update(subscriptions)
+          .set({ status: "inactive", updatedAt: new Date() })
+          .where(eq(subscriptions.id, currentSub.id));
+      }
+    } else if (isAdmin && body.subscriptionId) {
+      // Admin changed directly from a subscription row
+      const subId = Number(body.subscriptionId);
+      const subRow = await db.query.subscriptions.findFirst({
+        where: eq(subscriptions.id, subId),
+      });
+      if (subRow) {
+        await db
+          .update(subscriptions)
+          .set({ status: "inactive", updatedAt: new Date() })
+          .where(eq(subscriptions.id, subRow.id));
+      }
+    }
 
     // Check if subscription to target circle exists
     const existingTargetSub = await db.query.subscriptions.findFirst({
-      where: and(eq(subscriptions.userId, auth.id), eq(subscriptions.circleId, toCircleId)),
+      where: and(eq(subscriptions.userId, targetUserId), eq(subscriptions.circleId, toCircleId)),
     });
 
     if (existingTargetSub) {
@@ -452,23 +475,38 @@ export const changeCircleSubscription: Handler = async (c: any) => {
         .where(eq(subscriptions.id, existingTargetSub.id));
     } else {
       await db.insert(subscriptions).values({
-        userId: auth.id,
+        userId: targetUserId,
         circleId: toCircleId,
         status: "approved",
       });
     }
 
-    // Mark hasChangedCircle = true on user
-    if (user.role !== "admin") {
+    // Mark hasChangedCircle = true on user only if non-admin self-change
+    if (!isAdmin) {
       await db
         .update(users)
         .set({ hasChangedCircle: true })
         .where(eq(users.id, auth.id));
     }
 
+    // Send notification to user if admin changed it
+    if (isAdmin && targetUserId !== auth.id) {
+      try {
+        await db.insert(notifications).values({
+          userId: targetUserId,
+          type: "office_approved",
+          title: "Office Assignment Updated",
+          body: `An administrator updated your active office assignment to '${targetCircle.name}'.`,
+          link: "/dashboard"
+        });
+      } catch (err) {
+        console.error("Failed to notify user about circle change:", err);
+      }
+    }
+
     return c.json({ 
-      message: `Office successfully changed to ${targetCircle.name}!`,
-      data: { fromCircleId, toCircleId },
+      message: `Office successfully updated to ${targetCircle.name}!`,
+      data: { fromCircleId, toCircleId, userId: targetUserId },
     }, HttpStatusCodes.OK);
 
   } catch (error) {

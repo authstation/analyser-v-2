@@ -72,6 +72,15 @@
             </td>
             <td>{{ sub.createdAt ? new Date(sub.createdAt).toLocaleDateString() : '-' }}</td>
             <td class="text-end">
+              <div class="d-inline-flex align-items-center gap-2">
+                <button 
+                  @click="openChangeCircleModal(sub)" 
+                  class="btn btn-outline-info btn-sm py-1 px-2" 
+                  title="Change / Switch Circle"
+                >
+                  <i class="bi bi-arrow-left-right me-1"></i> Change
+                </button>
+
               <!-- Pending Request: Approve / Reject -->
               <div v-if="sub.status === 'pending'" class="btn-group btn-group-sm">
                 <button @click="updateStatus(sub.id, 'approved')" class="btn btn-success" title="Approve">
@@ -101,19 +110,46 @@
                   <i class="bi bi-check-circle me-1"></i> Approve
                 </button>
               </div>
+            </div>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
   </div>
+
+  <!-- Admin Change Circle Modal -->
+  <AdminChangeCircleModal
+    :is-open="isChangeModalOpen"
+    :user-id="selectedSub?.userId"
+    :user-name="selectedSub?.userName"
+    :user-email="selectedSub?.userEmail"
+    :current-circle-id="selectedSub?.circleId"
+    :current-circle-name="selectedSub?.circleName"
+    :subscription-id="selectedSub?.id"
+    @close="isChangeModalOpen = false"
+    @success="handleCircleChanged"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useHead } from '@vueuse/head';
 import Pagebar from '@/components/Pagebar.vue';
+import AdminChangeCircleModal from '@/components/admin/AdminChangeCircleModal.vue';
 import axios from '@/plugins/axios';
+
+const isChangeModalOpen = ref(false);
+const selectedSub = ref<any>(null);
+
+const openChangeCircleModal = (sub: any) => {
+  selectedSub.value = sub;
+  isChangeModalOpen.value = true;
+};
+
+const handleCircleChanged = async () => {
+  await fetchSubscriptions();
+};
 
 useHead({ title: 'Manage Subscriptions | Admin' });
 
