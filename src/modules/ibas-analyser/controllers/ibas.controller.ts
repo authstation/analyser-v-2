@@ -2,7 +2,8 @@ import type { Handler } from 'hono';
 import { db, HttpStatusCodes } from '@/framework/facade.js';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { ibasData } from '@/modules/ibas-analyser/database/models/ibas-analyser.js';
-import { ibasOffices, itemMappings, columnMappings, appSettings } from '@/modules/settings/database/models/settings.js';
+import { ibasOffices, itemMappings, appSettings } from '@/modules/settings/database/models/settings.js';
+import { columnMappings } from '@/modules/bin-analyser/database/models/bin-analyser.js';
 import * as xlsx from 'xlsx';
 
 /**
