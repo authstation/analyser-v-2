@@ -425,60 +425,86 @@ export const changeCircleSubscription: Handler = async (c: any) => {
       return c.json({ error: "Selected target office does not exist" }, HttpStatusCodes.NOT_FOUND);
     }
 
-    // If fromCircleId is provided, deactivate that specific subscription
-    if (fromCircleId && !isNaN(fromCircleId)) {
-      if (fromCircleId === toCircleId) {
-        return c.json({ error: "Target office must be different from source office" }, HttpStatusCodes.BAD_REQUEST);
-      }
-
-      const currentSub = await db.query.subscriptions.findFirst({
-        where: and(
-          eq(subscriptions.userId, targetUserId),
-          eq(subscriptions.circleId, fromCircleId),
-          eq(subscriptions.status, "approved")
-        ),
-      });
-
-      if (!currentSub && !isAdmin) {
-        return c.json({ error: "Source office is not currently active in subscriptions" }, HttpStatusCodes.BAD_REQUEST);
-      }
-
-      if (currentSub) {
-        await db
-          .update(subscriptions)
-          .set({ status: "inactive", updatedAt: new Date() })
-          .where(eq(subscriptions.id, currentSub.id));
-      }
-    } else if (isAdmin && body.subscriptionId) {
-      // Admin changed directly from a subscription row
+    // If admin is updating a specific subscription row, update circleId of THAT row directly
+    if (isAdmin && body.subscriptionId) {
       const subId = Number(body.subscriptionId);
       const subRow = await db.query.subscriptions.findFirst({
         where: eq(subscriptions.id, subId),
       });
-      if (subRow) {
+
+      if (!subRow) {
+        return c.json({ error: "Subscription record not found" }, HttpStatusCodes.NOT_FOUND);
+      }
+
+      // Check if user already has another subscription record for the target circle
+      const existingSameCircleSub = await db.query.subscriptions.findFirst({
+        where: and(
+          eq(subscriptions.userId, targetUserId),
+          eq(subscriptions.circleId, toCircleId)
+        ),
+      });
+
+      if (existingSameCircleSub && existingSameCircleSub.id !== subId) {
+        // Activate target record and remove/inactivate the old record to avoid duplicates
         await db
           .update(subscriptions)
-          .set({ status: "inactive", updatedAt: new Date() })
-          .where(eq(subscriptions.id, subRow.id));
+          .set({ status: "approved", updatedAt: new Date() })
+          .where(eq(subscriptions.id, existingSameCircleSub.id));
+
+        await db
+          .delete(subscriptions)
+          .where(eq(subscriptions.id, subId));
+      } else {
+        // Directly update this row's circleId to target circle!
+        await db
+          .update(subscriptions)
+          .set({ circleId: toCircleId, updatedAt: new Date() })
+          .where(eq(subscriptions.id, subId));
       }
-    }
-
-    // Check if subscription to target circle exists
-    const existingTargetSub = await db.query.subscriptions.findFirst({
-      where: and(eq(subscriptions.userId, targetUserId), eq(subscriptions.circleId, toCircleId)),
-    });
-
-    if (existingTargetSub) {
-      await db
-        .update(subscriptions)
-        .set({ status: "approved", updatedAt: new Date() })
-        .where(eq(subscriptions.id, existingTargetSub.id));
     } else {
-      await db.insert(subscriptions).values({
-        userId: targetUserId,
-        circleId: toCircleId,
-        status: "approved",
+      // Normal flow (User self-change or general circle change by fromCircleId)
+      if (fromCircleId && !isNaN(fromCircleId)) {
+        if (fromCircleId === toCircleId) {
+          return c.json({ error: "Target office must be different from source office" }, HttpStatusCodes.BAD_REQUEST);
+        }
+
+        const currentSub = await db.query.subscriptions.findFirst({
+          where: and(
+            eq(subscriptions.userId, targetUserId),
+            eq(subscriptions.circleId, fromCircleId),
+            eq(subscriptions.status, "approved")
+          ),
+        });
+
+        if (!currentSub && !isAdmin) {
+          return c.json({ error: "Source office is not currently active in subscriptions" }, HttpStatusCodes.BAD_REQUEST);
+        }
+
+        if (currentSub) {
+          await db
+            .update(subscriptions)
+            .set({ status: "inactive", updatedAt: new Date() })
+            .where(eq(subscriptions.id, currentSub.id));
+        }
+      }
+
+      // Check if subscription to target circle exists
+      const existingTargetSub = await db.query.subscriptions.findFirst({
+        where: and(eq(subscriptions.userId, targetUserId), eq(subscriptions.circleId, toCircleId)),
       });
+
+      if (existingTargetSub) {
+        await db
+          .update(subscriptions)
+          .set({ status: "approved", updatedAt: new Date() })
+          .where(eq(subscriptions.id, existingTargetSub.id));
+      } else {
+        await db.insert(subscriptions).values({
+          userId: targetUserId,
+          circleId: toCircleId,
+          status: "approved",
+        });
+      }
     }
 
     // Mark hasChangedCircle = true on user only if non-admin self-change

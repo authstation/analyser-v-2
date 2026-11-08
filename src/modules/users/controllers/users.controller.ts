@@ -1,5 +1,4 @@
-import { eq, desc, inArray } from "drizzle-orm";
-import { circles, subscriptions } from "@/modules/settings/database/models/settings.js";
+import { eq, desc } from "drizzle-orm";
 import { db, HttpStatusCodes } from "@/framework/facade.js";
 import { users } from "@/modules/auth/database/models/user.js";
 import { plans } from "@/modules/plans/database/models/plans.js";
@@ -32,31 +31,7 @@ export const index = tryCatch("Fetch users", async (c) => {
     .leftJoin(plans, eq(users.planId, plans.id))
     .orderBy(desc(users.createdAt));
 
-  const userIds = userList.map((u) => u.id);
-  const userSubs = userIds.length > 0 ? await db
-    .select({
-      id: subscriptions.id,
-      userId: subscriptions.userId,
-      circleId: subscriptions.circleId,
-      circleName: circles.name,
-      status: subscriptions.status,
-    })
-    .from(subscriptions)
-    .innerJoin(circles, eq(subscriptions.circleId, circles.id))
-    .where(inArray(subscriptions.userId, userIds)) : [];
-
-  const subMap = new Map();
-  for (const s of userSubs) {
-    if (!subMap.has(s.userId)) subMap.set(s.userId, []);
-    subMap.get(s.userId).push(s);
-  }
-
-  const result = userList.map((u) => ({
-    ...u,
-    subscriptions: subMap.get(u.id) || [],
-  }));
-
-  return c.json({ message: "Users fetched successfully", data: result });
+  return c.json({ message: "Users fetched successfully", data: userList });
 });
 
 /**
