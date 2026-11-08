@@ -321,6 +321,7 @@ export const routes = [
         component: () => import("@/pages/subscriptions/index.vue"),
         meta: {
           requiresAuth: true,
+          userOnly: true,
           headerTitle: "My Subscriptions",
           headerIcon: "bi-briefcase",
           headerColor: "text-primary"
@@ -435,6 +436,11 @@ router.beforeEach(async (to) => {
     // Redirect to dashboard if admin-only route accessed by non-admin
     if (to.meta.requiresAdmin && userRole !== "admin") {
       return { path: "/dashboard" };
+    }
+
+    // Redirect admins away from regular user-only pages (e.g. /my-subscriptions)
+    if (to.meta.userOnly && userRole === "admin") {
+      return { path: "/admin/subscriptions" };
     }
 
     // Prevent non-admin access to disabled modules

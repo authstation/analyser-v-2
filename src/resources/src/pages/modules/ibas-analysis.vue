@@ -77,20 +77,6 @@
             </div>
           </div>
 
-          <!-- Settings Card (Admin Only) -->
-          <div class="col-md-4" v-if="isAdmin">
-            <div class="card h-100 bg-surface border-custom shadow-sm hover-card">
-              <div class="card-body text-center p-4 d-flex flex-column justify-content-center">
-                <div class="mb-3">
-                  <i class="bi bi-gear text-warning" style="font-size: 3rem;"></i>
-                </div>
-                <h5 class="card-title fw-bold text-app">Settings</h5>
-                <p class="card-text text-muted small mb-4">Configure column mappings and item classification for iBAS++ Data Analysis.</p>
-                <router-link to="/admin/settings?tab=ibas_offices" class="btn btn-outline-warning w-100 mt-auto">Configure Settings</router-link>
-              </div>
-            </div>
-          </div>
-
           <!-- Reports Card -->
           <div class="col-md-4">
             <div class="card h-100 bg-surface border-custom shadow-sm hover-card">
