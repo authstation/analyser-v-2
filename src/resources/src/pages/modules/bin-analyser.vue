@@ -353,11 +353,17 @@ const saveToDatabase = async (startIndex: number | Event = 0) => {
 
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    alert(`Success: Data saved successfully.`);
+    const savedCount = totalSaved.value;
     closeModal();
     saveProgress.value = 0;
     totalSaved.value = 0;
     currentChunkIndex.value = 0;
+
+    if (savedCount > 0) {
+      alert(`Success: ${savedCount} records saved successfully.`);
+    } else {
+      alert(`Notice: No records were saved to the database.`);
+    }
   } catch (error: any) {
     if (error.response?.status === 400 && error.response?.data?.missingDivisions) {
       missingDivisions.value = error.response.data.missingDivisions;

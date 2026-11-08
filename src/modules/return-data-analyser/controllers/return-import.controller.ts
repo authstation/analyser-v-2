@@ -542,7 +542,7 @@ export const save: Handler = async (c: any) => {
       return c.json({ message: "Data saved successfully.", insertedRows: deduplicatedReturns.length, skippedNumericFields });
     }
 
-    return c.json({ message: "Data saved successfully.", insertedRows: 0, skippedNumericFields });
+    return c.json({ error: "কোনো বৈধ রিটার্ন রেকর্ড সংরক্ষণ করার মতো পাওয়া যায়নি।", insertedRows: 0, skippedNumericFields }, 400);
   } catch (error: any) {
     console.error("Save Error:", error);
     return c.json({ error: error.message || "Failed to save data." }, 500);

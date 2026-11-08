@@ -589,7 +589,7 @@ const saveToDatabase = async (startIndex: number | Event = 0) => {
       saveProgress.value = Math.round((Math.min(i + chunkSize, total) / total) * 100);
     }
 
-    const savedCount = totalSaved.value || total;
+    const savedCount = totalSaved.value;
     closeModal();
     isSaving.value = false;
     saving.value = false;
@@ -597,7 +597,11 @@ const saveToDatabase = async (startIndex: number | Event = 0) => {
     totalSaved.value = 0;
     currentChunkIndex.value = 0;
 
-    showToast(`ডাটা সফলভাবে সংরক্ষণ করা হয়েছে (${savedCount}টি রেকর্ড)!`, 'success');
+    if (savedCount > 0) {
+      showToast(`ডাটা সফলভাবে সংরক্ষণ করা হয়েছে (${savedCount}টি রেকর্ড)!`, 'success');
+    } else {
+      showToast('কোনো নতুন বা বৈধ রেকর্ড ডাটাবেজে সংরক্ষণ করা যায়নি।', 'warning');
+    }
   } catch (error: any) {
     isSaving.value = false;
     saving.value = false;
