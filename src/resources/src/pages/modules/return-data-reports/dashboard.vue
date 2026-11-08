@@ -550,11 +550,8 @@ const uniqueServiceAreas = computed(() => {
 });
 
 const fetchAreaOptions = async () => {
-  const token = localStorage.getItem('token');
-  try {
-    const res = await axios.get('/api/return-data-analyser/filter-options', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    try {
+    const res = await axios.get('/api/return-data-analyser/filter-options');
     if (res.data) {
       uniqueMajorAreas.value = res.data.majorAreas || [];
       uniqueMfgAreasBase.value = res.data.mfgAreas || [];
@@ -567,16 +564,15 @@ const fetchAreaOptions = async () => {
 };
 
 const fetchFiltersData = async () => {
-  const token = localStorage.getItem('token');
-  try {
-    const cRes = await axios.get('/api/settings/circles', { headers: { Authorization: `Bearer ${token}` } });
+    try {
+    const cRes = await axios.get('/api/settings/circles');
     circles.value = Array.isArray(cRes.data) ? cRes.data : (cRes.data?.data || []);
   } catch (error) {
     console.error('Failed to load circles:', error);
   }
 
   try {
-    const pRes = await axios.get('/api/settings/police-stations', { headers: { Authorization: `Bearer ${token}` } });
+    const pRes = await axios.get('/api/settings/police-stations');
     policeStations.value = Array.isArray(pRes.data) ? pRes.data : (pRes.data?.data || []);
   } catch (error) {
     console.error('Failed to load police stations:', error);
@@ -593,8 +589,7 @@ async function fetchAnalytics() {
   }
   loading.value = true;
   try {
-    const token = localStorage.getItem('token');
-    let url = '/api/return-data-analyser/analytics?';
+        let url = '/api/return-data-analyser/analytics?';
     const params = new URLSearchParams();
     if (filters.value.circleIds.length > 0) params.append('circleId', filters.value.circleIds.join(','));
     if (filters.value.policeStationIds.length > 0) params.append('policeStationId', filters.value.policeStationIds.join(','));
@@ -611,7 +606,7 @@ async function fetchAnalytics() {
     if (selectedServiceArea.value.length > 0) params.append('serviceArea', selectedServiceArea.value.join('|||'));
 
     url += params.toString();
-    const response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
+    const response = await axios.get(url);
     // Ignore stale responses that resolve after a newer request has started.
     if (seq !== analyticsRequestSeq) return;
     analyticsData.value = response.data.data || response.data;

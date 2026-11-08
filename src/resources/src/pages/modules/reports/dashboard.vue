@@ -443,10 +443,7 @@ const fetchDashboardStats = async () => {
     if (filters.policeStations.length > 0) queryParams.append('policeStations', filters.policeStations.join(','));
     if (trendBy.value) queryParams.append('trendBy', trendBy.value);
 
-    const token = localStorage.getItem('token') || '';
-    const response = await axios.get(`/api/bin-analyser/dashboard/all-stats?${queryParams.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const response = await axios.get(`/api/bin-analyser/dashboard/all-stats?${queryParams.toString()}`);
     
     if (response.data) {
       dashboardStats.summary = response.data.summary || dashboardStats.summary;

@@ -152,16 +152,15 @@ const currentPage = ref(1);
 const searchOptions = ref<any>({ circles: [], policeStations: [] });
 
 const fetchSearchOptions = async () => {
-  const token = localStorage.getItem('token');
-  try {
-    const cRes = await axios.get('/api/settings/circles', { headers: { Authorization: `Bearer ${token}` } });
+    try {
+    const cRes = await axios.get('/api/settings/circles');
     searchOptions.value.circles = Array.isArray(cRes.data) ? cRes.data : (cRes.data?.data || []);
   } catch (err) {
     console.error('Failed to load circles:', err);
   }
 
   try {
-    const pRes = await axios.get('/api/settings/police-stations', { headers: { Authorization: `Bearer ${token}` } });
+    const pRes = await axios.get('/api/settings/police-stations');
     searchOptions.value.policeStations = Array.isArray(pRes.data) ? pRes.data : (pRes.data?.data || []);
   } catch (err) {
     console.error('Failed to load police stations:', err);
@@ -193,8 +192,7 @@ const fetchList = async () => {
   }
   loading.value = true;
   try {
-    const token = localStorage.getItem('token');
-    const queryParams = new URLSearchParams({
+        const queryParams = new URLSearchParams({
       page: String(currentPage.value),
       limit: String(itemsPerPage)
     });
@@ -205,9 +203,7 @@ const fetchList = async () => {
     if (filters.value.toDate) queryParams.append('toDate', filters.value.toDate);
     if (searchQuery.value.trim()) queryParams.append('search', searchQuery.value.trim());
 
-    const res = await axios.get(`/api/return-data-analyser/list?${queryParams.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const res = await axios.get(`/api/return-data-analyser/list?${queryParams.toString()}`);
     
     if (res.data) {
       tableData.value = res.data.data || [];
@@ -253,10 +249,7 @@ const confirmDeleteAll = async () => {
   if (window.confirm("Are you sure you want to delete ALL return data? This cannot be undone.")) {
     isDeleting.value = true;
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.delete(`/api/return-data-analyser/delete-all`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+            const res = await axios.delete(`/api/return-data-analyser/delete-all`);
       alert(res.data.message || 'All Return Data Deleted');
       currentPage.value = 1;
       fetchList();

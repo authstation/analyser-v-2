@@ -365,8 +365,7 @@ const closeTab = () => {
 const fetchComparisonData = async () => {
   isLoading.value = true;
   try {
-    const token = localStorage.getItem('token');
-    const queryParams = new URLSearchParams();
+        const queryParams = new URLSearchParams();
     ['circleId', 'policeStationId', 'fromDate', 'toDate', 'metric', 'forcedRegistration', 'majorArea', 'mfgArea', 'serviceArea'].forEach(key => {
       if (route.query[key]) {
         queryParams.append(key, String(route.query[key]));
@@ -376,9 +375,7 @@ const fetchComparisonData = async () => {
       queryParams.set('fy', selectedFy.value);
     }
 
-    const res = await axios.get(`/api/return-data-analyser/fy-comparison?${queryParams.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const res = await axios.get(`/api/return-data-analyser/fy-comparison?${queryParams.toString()}`);
     comparisonData.value = res.data.data;
   } catch (error: any) {
     console.error('Failed to load FY comparison data:', error);

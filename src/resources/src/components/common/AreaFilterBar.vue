@@ -196,18 +196,15 @@ const activePoliceStations = computed(() => {
 
 onMounted(async () => {
   if (props.circles === undefined || props.policeStations === undefined) {
-    const token = localStorage.getItem('token');
-    try {
+        try {
       if (props.circles === undefined) {
         const cRes = await axios.get('/api/settings/circles', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+                  });
         localCircles.value = Array.isArray(cRes.data) ? cRes.data : (cRes.data?.data || []);
       }
       if (props.policeStations === undefined) {
         const pRes = await axios.get('/api/settings/police-stations', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+                  });
         localPoliceStations.value = Array.isArray(pRes.data) ? pRes.data : (pRes.data?.data || []);
       }
     } catch (err) {

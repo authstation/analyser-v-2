@@ -267,6 +267,55 @@ export const routes = [
         ]
       },
       {
+        path: "/modules/ibas-analysis",
+        name: "ibas-analysis",
+        component: () => import("@/pages/modules/ibas-analysis.vue"),
+        meta: {
+          requiresAuth: true,
+          headerTitle: "iBAS++ Analyser",
+          headerIcon: "bi-cash-stack",
+          headerColor: "text-success"
+        }
+      },
+      {
+        path: "/modules/ibas-reports",
+        component: () => import("@/pages/modules/ibas-reports/Layout.vue"),
+        redirect: "/modules/ibas-reports/dashboard",
+        meta: {
+          requiresAuth: true,
+          headerTitle: "iBAS++ Reports",
+          headerIcon: "bi-pie-chart-fill",
+          headerColor: "text-info"
+        },
+        children: [
+          {
+            path: "dashboard",
+            name: "ibas-dashboard",
+            component: () => import("@/pages/modules/ibas-reports/dashboard.vue")
+          },
+          {
+            path: "by-office",
+            name: "ibas-by-office",
+            component: () => import("@/pages/modules/ibas-reports/by-office.vue")
+          },
+          {
+            path: "by-item",
+            name: "ibas-by-item",
+            component: () => import("@/pages/modules/ibas-reports/by-item.vue")
+          },
+          {
+            path: "summary",
+            name: "ibas-summary",
+            component: () => import("@/pages/modules/ibas-reports/summary.vue")
+          },
+          {
+            path: "comparison",
+            name: "ibas-comparison",
+            component: () => import("@/pages/modules/ibas-reports/comparison.vue")
+          }
+        ]
+      },
+      {
         path: "/my-subscriptions",
         name: "my-subscriptions",
         component: () => import("@/pages/subscriptions/index.vue"),

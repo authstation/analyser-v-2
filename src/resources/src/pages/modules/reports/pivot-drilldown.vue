@@ -194,10 +194,7 @@ const fetchData = async () => {
     if (majorArea.value) queryParams.append('majorArea', majorArea.value);
     if (columnType.value) queryParams.append('columnType', columnType.value);
 
-    const token = localStorage.getItem('token') || '';
-    const response = await axios.get(`/api/bin-analyser/dashboard/drilldown/pivot?${queryParams.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+        const response = await axios.get(`/api/bin-analyser/dashboard/drilldown/pivot?${queryParams.toString()}`);
     
     tableData.value = response.data.data || [];
   } catch (err: any) {
@@ -242,10 +239,8 @@ const downloadExcel = async () => {
     if (majorArea.value) queryParams.append('majorArea', majorArea.value);
     if (columnType.value) queryParams.append('columnType', columnType.value);
 
-    const token = localStorage.getItem('token') || '';
-    const response = await axios.get(`/api/bin-analyser/dashboard/drilldown/pivot/export?${queryParams.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      responseType: 'blob'
+        const response = await axios.get(`/api/bin-analyser/dashboard/drilldown/pivot/export?${queryParams.toString()}`, {
+            responseType: 'blob'
     });
 
     const fileName = `Registrations_${majorArea.value || 'All'}_${columnType.value || 'Data'}.xlsx`.replace(/\s+/g, '_');

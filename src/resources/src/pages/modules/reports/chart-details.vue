@@ -307,10 +307,7 @@ const fetchData = async () => {
     // Request full data instead of top 10 limit
     queryParams.append('fullDetails', 'true');
 
-    const token = localStorage.getItem('token') || '';
-    const response = await axios.get(`/api/bin-analyser/dashboard/all-stats?${queryParams.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+        const response = await axios.get(`/api/bin-analyser/dashboard/all-stats?${queryParams.toString()}`);
     
     if (response.data && response.data.charts) {
       if (type === 'majorArea') {

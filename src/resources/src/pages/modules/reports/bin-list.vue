@@ -429,10 +429,8 @@ const downloadExcel = async () => {
       if (filters[key]) queryParams.append(key, filters[key] as string);
     }
     
-    const token = localStorage.getItem('token') || '';
-    const response = await axios.get(`/api/bin-analyser/export?${queryParams.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      responseType: 'blob'
+        const response = await axios.get(`/api/bin-analyser/export?${queryParams.toString()}`, {
+            responseType: 'blob'
     });
     
     const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -613,10 +611,7 @@ const confirmDelete = async () => {
         ? `/api/bin-analyser/delete?circle=${encodeURIComponent(selectedCircles.value[0])}`
         : `/api/bin-analyser/delete`;
         
-      const token = localStorage.getItem('token') || '';
-      const res = await axios.delete(url, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+            const res = await axios.delete(url);
       
       alert(res.data.message);
       

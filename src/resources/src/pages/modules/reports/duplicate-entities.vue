@@ -238,10 +238,7 @@ const runAnalysis = async () => {
     const queryParams = new URLSearchParams();
     if (searchCircles.value.length > 0) queryParams.append('circle', searchCircles.value.join(','));
     if (searchPoliceStations.value.length > 0) queryParams.append('policeStations', searchPoliceStations.value.join(','));
-    const token = localStorage.getItem('token') || '';
-    const response = await axios.get(`/api/bin-analyser/duplicates?${queryParams.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+        const response = await axios.get(`/api/bin-analyser/duplicates?${queryParams.toString()}`);
     
     // API returns array of { id, items, reason }
     if (response.data && response.data.data) {

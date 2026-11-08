@@ -244,17 +244,14 @@ const closeTab = () => {
 const fetchYearComparisonData = async () => {
   isLoading.value = true;
   try {
-    const token = localStorage.getItem('token');
-    const queryParams = new URLSearchParams();
+        const queryParams = new URLSearchParams();
     ['circleId', 'policeStationId', 'fromDate', 'toDate', 'metric', 'forcedRegistration', 'majorArea', 'mfgArea', 'serviceArea'].forEach(key => {
       if (route.query[key]) {
         queryParams.append(key, String(route.query[key]));
       }
     });
 
-    const res = await axios.get(`/api/return-data-analyser/year-comparison?${queryParams.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const res = await axios.get(`/api/return-data-analyser/year-comparison?${queryParams.toString()}`);
     comparisonData.value = res.data.data;
   } catch (error: any) {
     console.error('Failed to load Year comparison data:', error);

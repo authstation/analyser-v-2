@@ -8,3 +8,4 @@ export * from "../modules/plans/database/models/plans.js";
 export * from "../modules/return-data-analyser/database/models/return-data.js";
 export * from "../modules/settings/database/models/settings.js";
 export * from "../modules/storage-management/database/models/storage-management.js";
+export * from "../modules/ibas-analyser/database/models/ibas-analyser.js";
