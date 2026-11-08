@@ -25,12 +25,23 @@ export function getCircleCondition(approvedCircleIds: number[] | null, column: a
 }
 
 export async function resolveCircleId(circleName: string): Promise<number | null> {
-  const row = await db.select({ id: circles.id }).from(circles).where(eq(circles.name, circleName)).limit(1);
+  if (!circleName) return null;
+  const cleanName = String(circleName).replace(/\r?\n|\r/g, " ").trim().replace(/^['"`\s]+|['"`\s]+$/g, "").trim();
+  if (!cleanName) return null;
+  const numId = parseInt(cleanName, 10);
+  if (!isNaN(numId) && String(numId) === cleanName) {
+    const row = await db.select({ id: circles.id }).from(circles).where(eq(circles.id, numId)).limit(1);
+    if (row[0]?.id) return row[0].id;
+  }
+  const row = await db.select({ id: circles.id }).from(circles).where(sql`LOWER(TRIM(${circles.name})) = ${cleanName.toLowerCase()}`).limit(1);
   return row[0]?.id ?? null;
 }
 
 export async function resolvePSIds(psArr: string[]): Promise<number[]> {
-  const rows = await db.select({ id: policeStations.id }).from(policeStations).where(inArray(policeStations.name, psArr));
+  if (!psArr || psArr.length === 0) return [];
+  const cleaned = psArr.map(p => String(p).replace(/\r?\n|\r/g, " ").trim().replace(/^['"`\s]+|['"`\s]+$/g, "").trim()).filter(Boolean);
+  if (cleaned.length === 0) return [];
+  const rows = await db.select({ id: policeStations.id }).from(policeStations).where(sql`LOWER(TRIM(${policeStations.name})) IN (${sql.join(cleaned.map(s => sql`${s.toLowerCase()}`), sql`, `)})`);
   return rows.map(r => r.id);
 }
 

@@ -27,6 +27,14 @@ type ParseInput = {
 type ParseOk = { ok: true; data: any[] };
 type ParseErr = { ok: false; code: string; message?: string };
 
+function cleanCellValue(val: any): string {
+  if (val === null || val === undefined) return "";
+  let str = String(val).replace(/\r?\n|\r/g, " ").trim();
+  // Strip leading/trailing single quotes, backticks, double quotes
+  str = str.replace(/^['"`\s]+|['"`\s]+$/g, "").trim();
+  return str;
+}
+
 export function runReturnParse(input: ParseInput): ParseOk | ParseErr {
   const buffer = Buffer.from(input.buffer);
   const workbook = xlsx.read(buffer, { type: "buffer", cellDates: true });
@@ -124,7 +132,10 @@ export function runReturnParse(input: ParseInput): ParseOk | ParseErr {
         targetHeaders.forEach((th: string) => {
           const rowKey = Object.keys(row).find((k) => k.trim().toLowerCase() === th);
           if (rowKey && row[rowKey] !== undefined && row[rowKey] !== null) {
-            combinedValues.push(String(row[rowKey]));
+            const valStr = cleanCellValue(row[rowKey]);
+            if (valStr !== "") {
+              combinedValues.push(valStr);
+            }
           }
         });
         if (combinedValues.length > 0) {

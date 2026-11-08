@@ -24,6 +24,14 @@ type ParseInput = {
 type ParseOk = { ok: true; data: any[] };
 type ParseErr = { ok: false; code: string; message?: string };
 
+function cleanCellValue(val: any): string {
+  if (val === null || val === undefined) return "";
+  let str = String(val).replace(/\r?\n|\r/g, " ").trim();
+  // Strip leading/trailing single quotes, backticks, double quotes
+  str = str.replace(/^['"`\s]+|['"`\s]+$/g, "").trim();
+  return str;
+}
+
 export function runBinParse(input: ParseInput): ParseOk | ParseErr {
   const buffer = Buffer.from(input.buffer);
   const workbook = xlsx.read(buffer, { type: "buffer", cellDates: true });
@@ -109,9 +117,9 @@ export function runBinParse(input: ParseInput): ParseOk | ParseErr {
         const combinedValues: string[] = [];
         targetHeaders.forEach((th: string) => {
           const rowKey = Object.keys(row).find((k) => k.trim().toLowerCase() === th);
-          if (rowKey && row[rowKey] !== undefined && row[rowKey] !== null && String(row[rowKey]).trim() !== "") {
-            const valStr = String(row[rowKey]).trim();
-            if (!combinedValues.includes(valStr)) {
+          if (rowKey && row[rowKey] !== undefined && row[rowKey] !== null) {
+            const valStr = cleanCellValue(row[rowKey]);
+            if (valStr !== "" && !combinedValues.includes(valStr)) {
               combinedValues.push(valStr);
             }
           }

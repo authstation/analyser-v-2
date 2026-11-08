@@ -320,9 +320,15 @@ export const save: Handler = async (c: any) => {
     const user = c.get("auth");
     const approvedCircleIds = await getUserApprovedCircleIds(user);
 
+    const cleanStr = (v: any) => {
+      if (!v) return null;
+      const s = String(v).replace(/\r?\n|\r/g, " ").trim().replace(/^['"`\s]+|['"`\s]+$/g, "").trim();
+      return s || null;
+    };
+
     data.forEach((row: any) => {
-      const divisionName = row.division?.trim() ?? null;
-      const circleName = row.circle?.trim() ?? null;
+      const divisionName = cleanStr(row.division);
+      const circleName = cleanStr(row.circle);
       if (divisionName) uniqueDivisions.add(divisionName);
       if (divisionName && circleName) {
         uniqueCircles.set(`${divisionName}-${circleName}`, { circleName, divisionName });
@@ -378,8 +384,8 @@ export const save: Handler = async (c: any) => {
 
     const toInsert = data
       .map((row: any) => {
-        const divName = (row.division || "").toString().trim();
-        const circleName = (row.circle || "").toString().trim();
+        const divName = cleanStr(row.division) || "";
+        const circleName = cleanStr(row.circle) || "";
 
         let dId = null;
         let cId = null;
@@ -391,7 +397,7 @@ export const save: Handler = async (c: any) => {
         return {
           divisionId: dId,
           circleId: cId,
-          bin: (row.bin || "").toString().trim(),
+          bin: cleanStr(row.bin) || (row.bin || "").toString().trim(),
           submissionId: row.submission_id ? String(row.submission_id).trim() : null,
           taxPeriod: taxPeriodDate,
           hasActivities: row.has_activities ? String(row.has_activities).trim() : null,

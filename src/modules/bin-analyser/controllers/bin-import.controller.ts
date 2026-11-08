@@ -324,10 +324,16 @@ export const save: Handler = async (c: any) => {
     if (!user) return c.json({ error: 'Unauthorized' }, 401);
     const approvedCircleIds = await getUserApprovedCircleIds(user);
 
+    const cleanStr = (v: any) => {
+      if (!v) return null;
+      const s = String(v).replace(/\r?\n|\r/g, " ").trim().replace(/^['"`\s]+|['"`\s]+$/g, "").trim();
+      return s || null;
+    };
+
     data.forEach((row: any) => {
-      const divisionName = (row.division || row.division_name)?.trim() ?? null;
-      const circleName = (row.circle || row.circle_name)?.trim() ?? null;
-      const psName = (row.policeStation || row.police_station)?.trim() ?? null;
+      const divisionName = cleanStr(row.division || row.division_name);
+      const circleName = cleanStr(row.circle || row.circle_name);
+      const psName = cleanStr(row.policeStation || row.police_station);
       if (divisionName) uniqueDivisions.add(divisionName);
       if (divisionName && circleName) {
         uniqueCircles.set(`${divisionName}-${circleName}`, { circleName, divisionName });
@@ -419,14 +425,14 @@ export const save: Handler = async (c: any) => {
       }
 
       let divisionId: number | null = null;
-      const divName = (row.division || row.division_name)?.trim();
+      const divName = cleanStr(row.division || row.division_name);
       if (divName) {
         const d = existingDivisions.find((d: any) => d.name.toLowerCase() === divName.toLowerCase());
         if (d) divisionId = d.id;
       }
 
       let circleId: number | null = null;
-      const circName = (row.circle || row.circle_name)?.trim();
+      const circName = cleanStr(row.circle || row.circle_name);
       if (circName) {
         if (divisionId) {
           const c = existingCircles.find((c: any) => c.name.toLowerCase() === circName.toLowerCase() && c.divisionId === divisionId);
@@ -438,7 +444,7 @@ export const save: Handler = async (c: any) => {
       }
 
       let policeStationId: number | null = null;
-      const psName = (row.policeStation || row.police_station)?.trim();
+      const psName = cleanStr(row.policeStation || row.police_station);
       if (psName) {
         const ps = existingPoliceStations.find((p: any) => p.name.toLowerCase() === psName.toLowerCase() && p.circleId === circleId)
           || existingPoliceStations.find((p: any) => p.name.toLowerCase() === psName.toLowerCase());
