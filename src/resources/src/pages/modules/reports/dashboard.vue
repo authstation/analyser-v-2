@@ -316,7 +316,7 @@ const filters = reactive({
   manufacturingArea: 'All',
   serviceArea: 'All',
   year: 'All',
-  circles: [] as string[],
+  circles: [] as (string | number)[],
   policeStations: [] as string[]
 });
 

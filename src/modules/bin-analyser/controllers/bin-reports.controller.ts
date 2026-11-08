@@ -69,20 +69,31 @@ export const filters: Handler = async (c: any) => {
     const filterCircle = c.req.query('circle');
     const userKey = user?.id ?? "public";
     const circleKey = filterCircle || "all";
-    const cacheKey = `bin:filters:${userKey}:${circleKey}`;
+    const cacheKey = `bin:filters:v2:${userKey}:${circleKey}`;
 
     const data = await cache.remember(cacheKey, 86400, async () => {
+      let psTargetCircleIds: number[] = [];
+      if (filterCircle && filterCircle !== 'All') {
+        const rawCircleParts = filterCircle.includes('|||')
+          ? filterCircle.split('|||')
+          : filterCircle.split(',');
+        const resolved = await Promise.all(
+          rawCircleParts.map((s: string) => resolveCircleId(s))
+        );
+        psTargetCircleIds = resolved.filter((id): id is number => id !== null);
+      }
+
       const [circlesList, policeStationsList, statuses, forcedRegistrations, yearsResult, [totalRows], majorAreas, mfgAreas, serviceAreas, areaRelations] = await Promise.all([
-        db.selectDistinct({ circle: circles.name }).from(binData)
-          .leftJoin(circles, eq(binData.circleId, circles.id))
+        db.selectDistinct({ id: circles.id, name: circles.name }).from(binData)
+          .innerJoin(circles, eq(binData.circleId, circles.id))
           .where(and(isNotNull(binData.circleId), circleCondition)),
       db.selectDistinct({ policeStation: policeStations.name }).from(policeStations)
         .leftJoin(circles, eq(policeStations.circleId, circles.id))
         .where(and(
           sql`${policeStations.name} IS NOT NULL AND ${policeStations.name} != ''`,
           psCircleCondition,
-          filterCircle && filterCircle !== 'All' 
-            ? inArray(circles.name, filterCircle.split(',').map((s:string) => s.trim()).filter(Boolean)) 
+          psTargetCircleIds.length > 0
+            ? inArray(policeStations.circleId, psTargetCircleIds)
             : undefined
         )),
       db.selectDistinct({ binStatus: binData.binStatus }).from(binData)
@@ -168,7 +179,15 @@ export const filters: Handler = async (c: any) => {
 
       return {
         total: totalRows?.total || 0,
-        circles: circlesList.map(c => c.circle).filter(Boolean).sort(),
+        circles: circlesList
+          .filter(c => c.name && c.id)
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map(c => ({
+            id: c.id,
+            name: c.name,
+            label: c.name,
+            value: c.id
+          })),
         policeStations: policeStationsList.map(p => p.policeStation).sort(),
         statuses: statuses.map(s => s.binStatus).sort(),
         forcedRegistrations: forcedRegistrations.map(f => f.forcedRegistration).sort(),

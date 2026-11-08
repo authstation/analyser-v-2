@@ -255,7 +255,7 @@ const dataStore = useDataStore();
 const route = useRoute();
 
 const searchQuery = ref('');
-const searchCircles = ref<string[]>([]);
+const searchCircles = ref<(string | number)[]>([]);
 const searchPoliceStations = ref<string[]>([]);
 
 const searchResults = ref<any[]>([]);

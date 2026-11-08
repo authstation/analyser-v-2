@@ -2,7 +2,15 @@ import { z } from "@/framework/facade.js";
 
 export const BinFilterOptionsSchema = z.object({
   total: z.number().optional(),
-  circles: z.array(z.string()).optional(),
+  circles: z.array(z.union([
+    z.string(),
+    z.object({
+      id: z.number(),
+      name: z.string(),
+      label: z.string(),
+      value: z.number()
+    })
+  ])).optional(),
   policeStations: z.array(z.string()).optional(),
   statuses: z.array(z.string()).optional(),
   forcedRegistrations: z.array(z.string()).optional(),

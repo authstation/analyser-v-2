@@ -13,7 +13,7 @@ export const useDataStore = defineStore('data', {
       limit: 50,
       totalPages: 1
     },
-    availableCircles: [] as string[],
+    availableCircles: [] as any[],
     availablePoliceStations: [] as string[],
     availableStatuses: [] as string[],
     availableForcedRegistrations: [] as string[],

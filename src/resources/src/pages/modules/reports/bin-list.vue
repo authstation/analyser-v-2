@@ -289,7 +289,7 @@ const route = useRoute();
 const hasLoaded = ref(false);
 const fromIssueDate = ref('');
 const toIssueDate = ref('');
-const selectedCircles = ref<string[]>(route.query.circle ? (route.query.circle as string).split(',') : []);
+const selectedCircles = ref<(string | number)[]>(route.query.circle ? (route.query.circle as string).split(',') : []);
 const selectedPoliceStations = ref<string[]>(
   route.query.policeStations 
     ? (route.query.policeStations as string).split(',') 
@@ -599,8 +599,12 @@ onMounted(async () => {
 });
 
 const confirmDelete = async () => {
+  const circleObj = selectedCircles.value.length === 1
+    ? (dataStore.availableCircles || []).find((c: any) => String(c?.value ?? c?.id ?? c) === String(selectedCircles.value[0]))
+    : null;
+  const circleName = circleObj?.label || circleObj?.name || selectedCircles.value[0];
   const msg = selectedCircles.value.length === 1
-    ? `Are you sure you want to delete all records for Circle: ${selectedCircles.value[0]}? This cannot be undone.`
+    ? `Are you sure you want to delete all records for Circle: ${circleName}? This cannot be undone.`
     : `Are you sure you want to delete ALL records in the database? This cannot be undone.`;
     
   if (window.confirm(msg)) {

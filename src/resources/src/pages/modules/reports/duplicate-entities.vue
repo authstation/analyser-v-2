@@ -161,7 +161,7 @@ const duplicateGroups = ref<any[][]>([]);
 const progressPercent = ref(0);
 let progressInterval: any = null;
 
-const searchCircles = ref<string[]>([]);
+const searchCircles = ref<(string | number)[]>([]);
 const searchPoliceStations = ref<string[]>([]);
 
 onMounted(() => {

@@ -114,7 +114,7 @@ export async function buildConditions(c: any, user: any, ignoreDateFilters = fal
   const majorArea = c.req.query('majorArea') || c.req.query('major');
   const mfgArea = c.req.query('manufacturingArea') || c.req.query('mfg');
   const srvArea = c.req.query('serviceArea') || c.req.query('service');
-  const circle = c.req.query('circle') || c.req.query('circles');
+  const circle = c.req.query('circle') || c.req.query('circles') || c.req.query('circleId') || c.req.query('circleIds');
   const year = c.req.query('year');
   const fromDate = c.req.query('fromDate') || c.req.query('fromIssueDate');
   const toDate = c.req.query('toDate') || c.req.query('toIssueDate');
@@ -152,7 +152,10 @@ export async function buildConditions(c: any, user: any, ignoreDateFilters = fal
   }
 
   if (circle && circle !== 'All') {
-    const arr = circle.split(',').map((s: string) => s.trim()).filter(Boolean);
+    const rawArr = circle.includes('|||')
+      ? circle.split('|||')
+      : circle.split(',');
+    const arr = rawArr.map((s: string) => s.trim()).filter(Boolean);
     if (arr.length > 0) {
       const cids = await Promise.all(arr.map((n: string) => resolveCircleId(n)));
       const validCids = cids.filter(id => id !== null) as number[];
