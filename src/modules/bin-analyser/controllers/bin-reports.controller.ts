@@ -488,23 +488,147 @@ export const comparison: Handler = async (c: any) => {
   }
 };
 
+// Helper for string similarity / normalization
+const normalizeName = (name: string | null | undefined): string => {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/(enterprise|enterprises|trading|trade|international|builders|builder|ltd|limited|co|company|corp|corporation)$/g, '');
+};
+
+const areNamesSimilar = (nameA: string, nameB: string): boolean => {
+  const normA = normalizeName(nameA);
+  const normB = normalizeName(nameB);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+  if (normA.includes(normB) || normB.includes(normA)) return true;
+
+  // Simple bigram Dice coefficient
+  const getBigrams = (str: string) => {
+    const s = new Set<string>();
+    for (let i = 0; i < str.length - 1; i++) s.add(str.substring(i, i + 2));
+    return s;
+  };
+  const bgA = getBigrams(normA);
+  const bgB = getBigrams(normB);
+  let intersection = 0;
+  bgA.forEach(b => { if (bgB.has(b)) intersection++; });
+  const similarity = (2.0 * intersection) / (bgA.size + bgB.size);
+  return similarity >= 0.65;
+};
+
 export const duplicates: Handler = async (c: any) => {
   try {
     const user = c.get('auth');
     const { conditions } = await buildConditions(c, user);
+    // User requested only Active status entities
+    conditions.push(sql`LOWER(${binData.binStatus}) = 'active'`);
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const type = c.req.query('type') || 'true_duplicate'; // 'true_duplicate' | 'same_tin' | 'same_mobile'
 
-    const dupMobiles = await db.select({
-      mobile: binData.mobile,
-      count: sql<number>`cast(count(${binData.id}) as integer)`
-    }).from(binData)
-      .where(and(whereClause, sql`${binData.mobile} IS NOT NULL AND ${binData.mobile} != ''`))
-      .groupBy(binData.mobile)
-      .having(sql`count(${binData.id}) > 1`)
-      .limit(50);
+    let targetKeys: string[] = [];
+    let fieldCol: any = binData.mobile;
+    let fieldName: 'eTin' | 'mobile' = 'mobile';
 
-    const dupNumbers = dupMobiles.map(m => m.mobile).filter(Boolean);
-    if (dupNumbers.length === 0) {
+    if (type === 'same_tin') {
+      fieldCol = binData.eTin;
+      fieldName = 'eTin';
+      const dupTins = await db.select({
+        val: binData.eTin,
+        count: sql<number>`cast(count(${binData.id}) as integer)`
+      }).from(binData)
+        .where(and(whereClause, sql`${binData.eTin} IS NOT NULL AND ${binData.eTin} != ''`))
+        .groupBy(binData.eTin)
+        .having(sql`count(${binData.id}) > 1`)
+        .limit(100);
+
+      targetKeys = dupTins.map(m => m.val).filter(Boolean) as string[];
+    } else if (type === 'same_mobile') {
+      fieldCol = binData.mobile;
+      fieldName = 'mobile';
+      const dupMobiles = await db.select({
+        val: binData.mobile,
+        count: sql<number>`cast(count(${binData.id}) as integer)`
+      }).from(binData)
+        .where(and(whereClause, sql`${binData.mobile} IS NOT NULL AND ${binData.mobile} != ''`))
+        .groupBy(binData.mobile)
+        .having(sql`count(${binData.id}) > 1`)
+        .limit(100);
+
+      targetKeys = dupMobiles.map(m => m.val).filter(Boolean) as string[];
+    } else {
+      // 'true_duplicate': candidate entities that share eTin OR mobile
+      // We look for same eTin or same mobile, but later filter by name similarity!
+      const dupTins = await db.select({
+        val: binData.eTin
+      }).from(binData)
+        .where(and(whereClause, sql`${binData.eTin} IS NOT NULL AND ${binData.eTin} != ''`))
+        .groupBy(binData.eTin)
+        .having(sql`count(${binData.id}) > 1`)
+        .limit(150);
+
+      const targetTins = dupTins.map(m => m.val).filter(Boolean) as string[];
+
+      if (targetTins.length === 0) {
+        return c.json({ data: [] });
+      }
+
+      const rows = await db.select({
+        id: binData.id, bin: binData.bin, entityName: binData.entityName,
+        binIssueDate: binData.binIssueDate, binStatus: binData.binStatus,
+        forcedRegistration: binData.forcedRegistration,
+        majorAreaOfEconomicActivity: binData.majorAreaOfEconomicActivity,
+        areasOfManufacturing: binData.areasOfManufacturing,
+        areasOfService: binData.areasOfService,
+        email: binData.email, mobile: binData.mobile, address: binData.address,
+        circleName: circles.name, policeStation: policeStations.name, eTin: binData.eTin
+      }).from(binData)
+        .leftJoin(circles, eq(binData.circleId, circles.id))
+        .leftJoin(policeStations, eq(binData.policeStationId, policeStations.id))
+        .where(and(whereClause, inArray(binData.eTin, targetTins)))
+        .orderBy(binData.eTin);
+
+      // Group by eTin, then filter clusters that have similar names
+      const tinMap = new Map<string, any[]>();
+      rows.forEach(r => {
+        const tin = r.eTin!;
+        if (!tinMap.has(tin)) tinMap.set(tin, []);
+        tinMap.get(tin)!.push({
+          ...r,
+          circle: r.circleName,
+          binIssueDate: r.binIssueDate ? new Date(r.binIssueDate.getTime() - (r.binIssueDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0] : null
+        });
+      });
+
+      const trueDuplicateClusters: any[] = [];
+      let clusterIdx = 1;
+
+      tinMap.forEach((items, tin) => {
+        // Find pairs within the tin group that have similar names
+        const matchedItems = new Set<any>();
+        for (let i = 0; i < items.length; i++) {
+          for (let j = i + 1; j < items.length; j++) {
+            if (areNamesSimilar(items[i].entityName, items[j].entityName)) {
+              matchedItems.add(items[i]);
+              matchedItems.add(items[j]);
+            }
+          }
+        }
+
+        if (matchedItems.size > 1) {
+          trueDuplicateClusters.push({
+            id: clusterIdx++,
+            reason: `Potential Duplicate Entity (Same e-TIN & Similar Name: ${tin})`,
+            items: Array.from(matchedItems)
+          });
+        }
+      });
+
+      return c.json({ data: trueDuplicateClusters });
+    }
+
+    if (targetKeys.length === 0) {
       return c.json({ data: [] });
     }
 
@@ -520,14 +644,15 @@ export const duplicates: Handler = async (c: any) => {
     }).from(binData)
       .leftJoin(circles, eq(binData.circleId, circles.id))
       .leftJoin(policeStations, eq(binData.policeStationId, policeStations.id))
-      .where(and(whereClause, inArray(binData.mobile, dupNumbers)))
-      .orderBy(binData.mobile);
+      .where(and(whereClause, inArray(fieldCol, targetKeys)))
+      .orderBy(fieldCol);
 
     const groupMap = new Map<string, any[]>();
     rows.forEach(r => {
-      const mob = r.mobile!;
-      if (!groupMap.has(mob)) groupMap.set(mob, []);
-      groupMap.get(mob)!.push({
+      const key = fieldName === 'eTin' ? r.eTin! : r.mobile!;
+      if (!key) return;
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key)!.push({
         ...r,
         circle: r.circleName,
         binIssueDate: r.binIssueDate ? new Date(r.binIssueDate.getTime() - (r.binIssueDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0] : null
@@ -536,7 +661,7 @@ export const duplicates: Handler = async (c: any) => {
 
     const data = Array.from(groupMap.entries()).map(([key, items], idx) => ({
       id: idx + 1,
-      reason: `Duplicate Mobile: ${key}`,
+      reason: fieldName === 'eTin' ? `Same Owner (e-TIN: ${key})` : `Duplicate Mobile: ${key}`,
       items
     }));
 

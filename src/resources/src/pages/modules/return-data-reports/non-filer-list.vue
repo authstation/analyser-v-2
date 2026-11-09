@@ -389,6 +389,7 @@ import MultiSelectDropdown from "@/components/common/MultiSelectDropdown.vue";
 import SearchInput from "@/components/common/SearchInput.vue";
 import BatchLetterPrintModal from "./components/BatchLetterPrintModal.vue";
 import axios from "@/plugins/axios";
+import { loadXLSX } from "@/utils/xlsx";
 
 const router = useRouter();
 
@@ -839,60 +840,57 @@ const formatEntityAddress = (row: any) => {
   return addr;
 };
 
-const downloadExcel = () => {
+const downloadExcel = async () => {
   const data = filteredList.value;
   if (data.length === 0) return;
 
-  const headers = [
-    "SL",
-    "BIN",
-    "Entity Name",
-    "Address",
-    "Economic Activity",
-    "Mobile",
-    "Circle",
-    "Police Station",
-    "Status",
-    "BIN Issue Date",
-    "Eligible",
-    "Submitted Returns",
-    "Non-Filed"
+  const XLSX = await loadXLSX();
+
+  const exportRows = data.map((row: any, idx: number) => ({
+    'SL': idx + 1,
+    'BIN': row.bin || '',
+    'Entity Name': row.name || '',
+    'Address': formatEntityAddress(row),
+    'Major Area': row.majorArea || '',
+    'Mfg Area': row.manufacturingArea || '',
+    'Service Area': row.serviceArea || '',
+    'Mobile': row.mobile && row.mobile !== '-' ? row.mobile : '',
+    'Circle': row.circleName || '',
+    'Police Station': row.policeStationName || '',
+    'Status': row.binStatus || '',
+    'Reg. Type': row.forcedRegistration === 'Yes' ? 'Forced' : 'Regular',
+    'BIN Issue Date': formatDate(row.issueDate),
+    'Eligible': row.totalDueMonths || 0,
+    'Submitted Returns': row.submittedCount || 0,
+    'Non-Filed': row.grandTotalMonths || 0
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Non-Filers');
+
+  const wscols = [
+    { wch: 6 },  // SL
+    { wch: 18 }, // BIN
+    { wch: 35 }, // Entity Name
+    { wch: 45 }, // Address
+    { wch: 25 }, // Major Area
+    { wch: 25 }, // Mfg Area
+    { wch: 25 }, // Service Area
+    { wch: 16 }, // Mobile
+    { wch: 18 }, // Circle
+    { wch: 18 }, // Police Station
+    { wch: 12 }, // Status
+    { wch: 12 }, // Reg. Type
+    { wch: 15 }, // BIN Issue Date
+    { wch: 10 }, // Eligible
+    { wch: 16 }, // Submitted Returns
+    { wch: 12 }  // Non-Filed
   ];
+  worksheet['!cols'] = wscols;
 
-  const csvContent = [
-    headers.join(","),
-    ...data.map((row, idx) => {
-      const bin = `"=""${row.bin || ""}"""`;
-      const name = `"${(row.name || "").replace(/"/g, '""')}"`;
-
-      // Combine "Address, Police Station, District"
-      const fullAddressStr = formatEntityAddress(row);
-      const address = `"${fullAddressStr.replace(/"/g, '""')}"`;
-
-      const economicActivity = `"${formatEconomicActivity(row).replace(/"/g, '""')}"`;
-      const mobile = `"=""${row.mobile && row.mobile !== "-" ? row.mobile : ""}"""`;
-      const circle = `"${(row.circleName || "").replace(/"/g, '""')}"`;
-      const ps = `"${(row.policeStationName || "").replace(/"/g, '""')}"`;
-      const status = `"${(row.binStatus || "").replace(/"/g, '""')}"`;
-      const issueDate = `"${formatDate(row.issueDate)}"`;
-      const due = row.totalDueMonths || 0;
-      const submitted = row.submittedCount || 0;
-      const unfiled = row.grandTotalMonths || 0;
-      return `${idx + 1},${bin},${name},${address},${economicActivity},${mobile},${circle},${ps},${status},${issueDate},${due},${submitted},${unfiled}`;
-    })
-  ].join("\n");
-
-  const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-
-  const dateStr = new Date().toISOString().split("T")[0];
-  link.setAttribute("download", `Non_Filer_List_${dateStr}.csv`);
-
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const dateStr = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `Non_Filer_List_${dateStr}.xlsx`);
 };
 
 onMounted(async () => {
