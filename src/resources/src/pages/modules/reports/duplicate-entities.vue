@@ -142,7 +142,7 @@
                 <i class="bi bi-arrow-counterclockwise fs-5"></i>
               </button>
               <button
-                class="btn btn-primary shadow-sm flex-fill d-flex align-items-center justify-content-center gap-1"
+                class="btn btn-primary shadow-sm flex-fill d-flex align-items-center justify-content-center gap-1 text-nowrap"
                 style="cursor: pointer; height: 38px;"
                 @click="runAnalysis"
                 :disabled="isAnalyzing"
@@ -150,7 +150,7 @@
               >
                 <span v-if="isAnalyzing" class="spinner-border spinner-border-sm me-1"></span>
                 <i v-else class="bi bi-play-fill fs-5"></i>
-                <span class="d-none d-sm-inline">{{ isAnalyzing ? 'Analyzing...' : 'Run Analysis' }}</span>
+                <span>{{ isAnalyzing ? 'Running...' : 'Run' }}</span>
               </button>
               <button
                 v-if="hasRun && duplicateClusters.length > 0"
