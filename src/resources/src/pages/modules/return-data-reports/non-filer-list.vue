@@ -858,7 +858,7 @@ const downloadExcel = async () => {
     'Circle': row.circleName || '',
     'Police Station': row.policeStationName || '',
     'Status': row.binStatus || '',
-    'Reg. Type': row.forcedRegistration === 'Yes' ? 'Forced' : 'Regular',
+    'Forced Reg': row.forcedRegistration || 'No',
     'BIN Issue Date': formatDate(row.issueDate),
     'Eligible': row.totalDueMonths || 0,
     'Submitted Returns': row.submittedCount || 0,
@@ -881,7 +881,7 @@ const downloadExcel = async () => {
     { wch: 18 }, // Circle
     { wch: 18 }, // Police Station
     { wch: 12 }, // Status
-    { wch: 12 }, // Reg. Type
+    { wch: 12 }, // Forced Reg
     { wch: 15 }, // BIN Issue Date
     { wch: 10 }, // Eligible
     { wch: 16 }, // Submitted Returns
