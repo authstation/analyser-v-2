@@ -126,7 +126,7 @@ export const drilldownEntities: Handler = async (c: any) => {
         "circles"."name",
         "police_stations"."name"
       ORDER BY "totalPayableVat" DESC, "submissionCount" DESC
-      LIMIT 1000
+      LIMIT 100000
     `;
 
     const rawRows = extractRows(await db.execute(query));
